@@ -357,16 +357,32 @@ function RecipeCard({ recipe, onClick, onDelete }) {
 }
 
 /* ─── Text Paste Parser ──────────────────────────────────── */
-/* Returns true for ingredient "lines" that are actually sub-headers or irrelevant labels */
+/* Returns true if the line is a section sub-header (not an actual ingredient) */
 function isIngSubHeader(text) {
   if (!text) return true;
-  if (text.endsWith(':')) return true; // "לקוביות התפוחים:", "לבלילת העוגה:"
-  if (/^(המרכיבים|טבלת המרות|החומרים|הרכיבים|חומרים|מרכיבים|רכיבים|לקישוט|להגשה|ציפוי|תוספות)$/.test(text)) return true;
-  // Short line (≤4 words), no digits, no measurement keywords → probably a section label
+
+  // Explicit: ends with colon
+  if (text.endsWith(':')) return true;
+
+  // Explicit: known section-label words
+  if (/^(המרכיבים|טבלת המרות|החומרים|הרכיבים|חומרים|מרכיבים|רכיבים|לקישוט|להגשה|ציפוי|תוספות|ציפוי|קישוט)$/.test(text)) return true;
+
+  // Strong ingredient signals → always ingredient
   const hasDigit = /\d/.test(text);
-  const hasMeasure = /כוס|כף|כפית|גרם|ק"ג|מ"ל|ליטר|יח'|יחידות|חבילה|שקית|קופסא|קופסה|מיכל/.test(text);
+  const hasMeasure = /כוס|כף|כפית|גרם|ק"ג|מ"ל|ליטר|יח'|יחידות|חבילה|שקית|קופסא|קופסה|מיכל|מנה|פרוסה|חתיכה|ענף|קורט|טיפה/.test(text);
+  if (hasDigit || hasMeasure) return false;
+
+  // Food ingredient keywords → always ingredient (even without quantity)
+  const foodWords = /קמח|סוכר|חמאה|שמן|ביצ|חלב|שמנת|גבינה|יוגורט|דבש|ריבה|מלח|פלפל|כמון|פפריקה|קינמון|וניל|שוקולד|קקאו|קורנפלור|שמרים|סודה|אבקת|קוקוס|שקד|אגוז|קשיו|פיסטוק|צימוק|תמר|תפוח|בננה|לימון|תפוז|תות|אפרסק|מנגו|אבוקדו|עגבניה|מלפפון|גזר|בצל|שום|תפוח אדמה|בטטה|כרוב|חסה|תרד|פטריה|עוף|בשר|דג|טונה|סלמון|שרימפס|גחלים|אורז|פסטה|קינואה|עדשים|חומוס|שעועית|טחינה|פסטו|רוטב|קטשופ|חרדל|מיונז|חומץ|יין|מיץ|מים|קפה|תה|כורכום|זעתר|בהרט|רוזמרין|טימין|בזיליקום|אורגנו|עלי דפנה|ג'ינג'ר|הל|ציפורן|אניס|כוסברה|פטרוזיליה|שמיר|נענע|עירית|תבלין/.test(text);
+  if (foodWords) return false;
+
+  // Sub-header signals: starts with prep-direction words or connector "ל"
+  const startsWithPrep = /^(ל|של|עבור|לציפוי|לבלילה|לרוטב|למילוי|לקרם|לגנאש|לקישוט|לבסיס|לתחתית|לשכבה|לסירופ|לרבוכה|להכנת|לבישול|לאפייה)/.test(text);
+  if (startsWithPrep) return true;
+
+  // Short line (≤3 words) with no food signals → probably a label
   const wordCount = text.split(/\s+/).filter(Boolean).length;
-  return !hasDigit && !hasMeasure && wordCount <= 4;
+  return wordCount <= 3;
 }
 
 /* Try to split a text block into step texts using numbered/bullet markers */
@@ -789,13 +805,18 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
               },
             } : {};
 
+            function toggleType(id, currentType) {
+              setIngredients(p => p.map(i => i.id===id ? {...i, type: currentType==='subheader' ? 'ingredient' : 'subheader'} : i));
+              markDirty();
+            }
+
             if (ing.type === 'subheader') {
               return (
                 <div key={ing.id} {...dragHandlers} style={{marginTop:14, marginBottom:6, cursor: editMode ? 'grab' : 'default'}}>
                   {editMode
                     ? <div className="ingredient-row">
                         <span style={{color:'#d1d5db', fontSize:'1.1rem', cursor:'grab', paddingLeft:4}}>⠿</span>
-                        <span style={{fontSize:'1rem'}}>📌</span>
+                        <button title="הפוך למצרך" onClick={()=>toggleType(ing.id,'subheader')} style={{background:'#ede9fe', border:'none', borderRadius:6, padding:'4px 7px', cursor:'pointer', fontSize:'0.72rem', fontWeight:700, color:'#7c3aed', flexShrink:0, whiteSpace:'nowrap'}}>📌→🥦</button>
                         <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="כותרת (למשל: לבלילה, לרוטב...)" style={{flex:1, fontWeight:700}} onMouseDown={e=>e.stopPropagation()} />
                         <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
                       </div>
@@ -813,6 +834,7 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
                   {editMode
                     ? <>
                         <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="מצרך..." style={{flex:1}} onMouseDown={e=>e.stopPropagation()} />
+                        <button title="הפוך לכותרת" onClick={()=>toggleType(ing.id,'ingredient')} style={{background:'#f3f4f6', border:'none', borderRadius:6, padding:'4px 7px', cursor:'pointer', fontSize:'0.72rem', fontWeight:700, color:'#6b7280', flexShrink:0, whiteSpace:'nowrap'}}>🥦→📌</button>
                         <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
                       </>
                     : <span style={{color:'#374151', fontSize:'0.95rem'}}>{ing.text}</span>
