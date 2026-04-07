@@ -641,8 +641,8 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
   const [steps, setSteps] = useState(recipe.steps?.length ? recipe.steps : []);
   const [confirmDel, setConfirmDel] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [dragIdx, setDragIdx] = useState(null);
   const coverRef = useRef();
+  const dragStepRef = useRef(null);
 
   const markDirty = () => setDirty(true);
 
@@ -771,14 +771,32 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
         {ingredients.length === 0 && !editMode && <p style={{color:'#9ca3af', fontSize:'0.9rem'}}>לא הוזנו מצרכים</p>}
         {(() => {
           let ingCount = 0;
-          return ingredients.map((ing) => {
+          const dragRef = { current: null };
+          return ingredients.map((ing, idx) => {
+            const dragHandlers = editMode ? {
+              draggable: true,
+              onDragStart: () => { dragRef.current = idx; },
+              onDragOver: e => { e.preventDefault(); },
+              onDrop: e => {
+                e.preventDefault();
+                const from = dragRef.current;
+                if (from === null || from === idx) return;
+                const arr = [...ingredients];
+                const [el] = arr.splice(from, 1);
+                arr.splice(idx, 0, el);
+                setIngredients(arr); markDirty();
+                dragRef.current = null;
+              },
+            } : {};
+
             if (ing.type === 'subheader') {
               return (
-                <div key={ing.id} style={{marginTop:14, marginBottom:6}}>
+                <div key={ing.id} {...dragHandlers} style={{marginTop:14, marginBottom:6, cursor: editMode ? 'grab' : 'default'}}>
                   {editMode
                     ? <div className="ingredient-row">
+                        <span style={{color:'#d1d5db', fontSize:'1.1rem', cursor:'grab', paddingLeft:4}}>⠿</span>
                         <span style={{fontSize:'1rem'}}>📌</span>
-                        <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="כותרת (למשל: לבלילה, לרוטב...)" style={{flex:1, fontWeight:700}} />
+                        <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="כותרת (למשל: לבלילה, לרוטב...)" style={{flex:1, fontWeight:700}} onMouseDown={e=>e.stopPropagation()} />
                         <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
                       </div>
                     : <p style={{fontWeight:700, fontSize:'0.95rem', color:'#374151', borderBottom:'1.5px solid #f3f4f6', paddingBottom:4}}>{ing.text}</p>
@@ -789,11 +807,12 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
               ingCount++;
               const num = ingCount;
               return (
-                <div key={ing.id} className="ingredient-row">
-                  <span style={{color:'#f97316', fontWeight:700, minWidth:22, fontSize:'0.9rem'}}>{num}.</span>
+                <div key={ing.id} {...dragHandlers} className="ingredient-row" style={{cursor: editMode ? 'grab' : 'default'}}>
+                  {editMode && <span style={{color:'#d1d5db', fontSize:'1.1rem', cursor:'grab', flexShrink:0}}>⠿</span>}
+                  <span style={{color:'#f97316', fontWeight:700, minWidth:22, fontSize:'0.9rem', flexShrink:0}}>{num}.</span>
                   {editMode
                     ? <>
-                        <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="מצרך..." style={{flex:1}} />
+                        <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="מצרך..." style={{flex:1}} onMouseDown={e=>e.stopPropagation()} />
                         <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
                       </>
                     : <span style={{color:'#374151', fontSize:'0.95rem'}}>{ing.text}</span>
@@ -826,8 +845,18 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
           <StepCard key={step.id} step={step} idx={idx} total={steps.length} editMode={editMode}
             onUpdate={(key,val)=>updateStep(step.id,key,val)}
             onRemove={()=>removeStep(step.id)}
-            onMoveUp={()=>moveStep(idx,idx-1)}
-            onMoveDown={()=>moveStep(idx,idx+1)}
+            onDragStart={()=>{ dragStepRef.current = idx; }}
+            onDragOver={e=>e.preventDefault()}
+            onDrop={e=>{
+              e.preventDefault();
+              const from = dragStepRef.current;
+              if (from === null || from === idx) return;
+              const arr = [...steps];
+              const [el] = arr.splice(from, 1);
+              arr.splice(idx, 0, el);
+              setSteps(arr); markDirty();
+              dragStepRef.current = null;
+            }}
             onImageUpload={e=>handleStepImage(step.id,e)} />
         ))}
         {editMode && (
@@ -846,17 +875,19 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
   );
 }
 
-function StepCard({ step, idx, total, editMode, onUpdate, onRemove, onMoveUp, onMoveDown, onImageUpload }) {
+function StepCard({ step, idx, total, editMode, onUpdate, onRemove, onDragStart, onDragOver, onDrop, onImageUpload }) {
   const imgRef = useRef();
+  const dragProps = editMode ? { draggable:true, onDragStart, onDragOver, onDrop } : {};
   return (
-    <div className="step-card">
+    <div className="step-card" {...dragProps} style={{cursor: editMode ? 'grab' : 'default'}}>
       <div style={{display:'flex', alignItems:'flex-start', gap:12}}>
+        {editMode && <span style={{color:'#d1d5db', fontSize:'1.2rem', cursor:'grab', flexShrink:0, marginTop:6}}>⠿</span>}
         <div style={{background:'#f97316', color:'white', borderRadius:'50%', width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'0.85rem', flexShrink:0, marginTop:4}}>
           {idx+1}
         </div>
         <div style={{flex:1}}>
           {editMode
-            ? <textarea className="input-field" value={step.text} onChange={e=>onUpdate('text',e.target.value)} placeholder="תיאור השלב..." rows={3} style={{resize:'vertical', marginBottom:10}} />
+            ? <textarea className="input-field" value={step.text} onChange={e=>onUpdate('text',e.target.value)} placeholder="תיאור השלב..." rows={3} style={{resize:'vertical', marginBottom:10}} onMouseDown={e=>e.stopPropagation()} />
             : <p style={{color:'#374151', fontSize:'0.95rem', lineHeight:1.6, whiteSpace:'pre-wrap'}}>{step.text || <span style={{color:'#d1d5db'}}>ריק</span>}</p>
           }
 
@@ -893,8 +924,6 @@ function StepCard({ step, idx, total, editMode, onUpdate, onRemove, onMoveUp, on
 
         {editMode && (
           <div style={{display:'flex', flexDirection:'column', gap:4, flexShrink:0}}>
-            <button onClick={onMoveUp} disabled={idx===0} style={{background:'#f3f4f6', border:'none', borderRadius:6, width:28, height:28, cursor:idx===0?'not-allowed':'pointer', opacity:idx===0?0.4:1, fontSize:'0.85rem'}}>↑</button>
-            <button onClick={onMoveDown} disabled={idx===total-1} style={{background:'#f3f4f6', border:'none', borderRadius:6, width:28, height:28, cursor:idx===total-1?'not-allowed':'pointer', opacity:idx===total-1?0.4:1, fontSize:'0.85rem'}}>↓</button>
             <button onClick={onRemove} style={{background:'#fee2e2', border:'none', borderRadius:6, width:28, height:28, cursor:'pointer', fontSize:'0.85rem', color:'#dc2626'}}>✕</button>
           </div>
         )}
