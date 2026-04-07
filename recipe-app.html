@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>המתכונים שלי</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { heebo: ['Heebo', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { font-family: 'Heebo', sans-serif; box-sizing: border-box; }
+    body { background-color: #faf9f6; min-height: 100vh; }
+    .drag-handle { cursor: grab; }
+    .drag-handle:active { cursor: grabbing; }
+    input, textarea, select { direction: rtl; }
+    .card-hover { transition: transform 0.15s, box-shadow 0.15s; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+    .btn-primary { background: #f97316; color: white; border: none; border-radius: 10px; padding: 9px 20px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+    .btn-primary:hover { background: #ea6c0a; transform: scale(1.02); }
+    .btn-secondary { background: #fff; color: #374151; border: 1.5px solid #d1d5db; border-radius: 10px; padding: 8px 18px; font-weight: 500; font-size: 0.9rem; cursor: pointer; transition: background 0.15s; }
+    .btn-secondary:hover { background: #f9fafb; }
+    .btn-danger { background: #fee2e2; color: #dc2626; border: none; border-radius: 8px; padding: 6px 14px; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
+    .btn-danger:hover { background: #fecaca; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .modal-box { background: white; border-radius: 18px; padding: 28px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .input-field { width: 100%; border: 1.5px solid #d1d5db; border-radius: 10px; padding: 9px 13px; font-size: 0.95rem; outline: none; transition: border-color 0.15s; background: white; }
+    .input-field:focus { border-color: #f97316; }
+    .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+    .section-title { font-size: 1.1rem; font-weight: 700; color: #1f2937; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+    .step-card { border: 1.5px solid #e5e7eb; border-radius: 14px; padding: 16px; margin-bottom: 12px; background: white; }
+    .ingredient-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .nav-link { padding: 8px 14px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: background 0.15s; color: #374151; background: transparent; border: none; }
+    .nav-link:hover { background: #fff7ed; color: #f97316; }
+    .nav-link.active { background: #fff7ed; color: #f97316; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ─── Constants ─────────────────────────────────────────── */
+const SK = { CATS: 'recipes_categories', RECIPES: 'recipes_data', CONV: 'conversion_data' };
+
+const DEF_CATS = [
+  { id: 'cat1', name: 'אפייה', icon: '🧁', color: '#fef3c7' },
+  { id: 'cat2', name: 'בישול', icon: '🍳', color: '#ffedd5' },
+  { id: 'cat3', name: 'קינוחים', icon: '🍮', color: '#fce7f3' },
+  { id: 'cat4', name: 'סלטים ורטבים', icon: '🥗', color: '#d1fae5' },
+  { id: 'cat5', name: 'שתייה ומשקאות', icon: '🍹', color: '#dbeafe' },
+  { id: 'cat6', name: 'ארוחות בוקר', icon: '🥪', color: '#ede9fe' },
+];
+
+const DEF_CONV = [
+  { id:'cv1', unitType:'כוס', ingredient:'קמח מלא (רגיל או תופח)', grams:140 },
+  { id:'cv2', unitType:'כוס', ingredient:'קמח', grams:125 },
+  { id:'cv3', unitType:'כוס', ingredient:'סוכר', grams:200 },
+  { id:'cv4', unitType:'כוס', ingredient:'סוכר חום דחוס', grams:225 },
+  { id:'cv5', unitType:'כוס', ingredient:'חמאה', grams:230 },
+  { id:'cv6', unitType:'כוס', ingredient:'אבקת סוכר', grams:120 },
+  { id:'cv7', unitType:'כוס', ingredient:'אגוזים טחונים', grams:110 },
+  { id:'cv8', unitType:'כוס', ingredient:'אגוזים קצוצים', grams:100 },
+  { id:'cv9', unitType:'כוס', ingredient:'אורז ארוך', grams:200 },
+  { id:'cv10', unitType:'כוס', ingredient:'אורז קצר', grams:210 },
+  { id:'cv11', unitType:'כוס', ingredient:'דבש / סירופ מייפל', grams:320 },
+  { id:'cv12', unitType:'כוס', ingredient:'ריבה', grams:320 },
+  { id:'cv13', unitType:'כוס', ingredient:'חמאת בוטנים', grams:280 },
+  { id:'cv14', unitType:'כוס', ingredient:'מלח', grams:290 },
+  { id:'cv15', unitType:'כוס', ingredient:'פירות יבשים קצוצים', grams:150 },
+  { id:'cv16', unitType:'כוס', ingredient:'פירורי לחם', grams:125 },
+  { id:'cv17', unitType:'כוס', ingredient:'פירורי עוגיות', grams:110 },
+  { id:'cv18', unitType:'כוס', ingredient:'צימוקים', grams:140 },
+  { id:'cv19', unitType:'כוס', ingredient:'קוקוס טחון', grams:70 },
+  { id:'cv20', unitType:'כוס', ingredient:'קורנפלור', grams:140 },
+  { id:'cv21', unitType:'כוס', ingredient:'קקאו', grams:140 },
+  { id:'cv22', unitType:'כוס', ingredient:"שוקולד צ'יפס", grams:200 },
+  { id:'cv23', unitType:'כוס', ingredient:'שיבולת שועל', grams:100 },
+  { id:'cv24', unitType:'כוס', ingredient:'שמן', grams:200 },
+  { id:'cv25', unitType:'כף', ingredient:'קמח', grams:10 },
+  { id:'cv26', unitType:'כף', ingredient:'סוכר', grams:12 },
+  { id:'cv27', unitType:'כף', ingredient:'מלח', grams:18 },
+  { id:'cv28', unitType:'כף', ingredient:'שמרים יבשים', grams:10 },
+  { id:'cv29', unitType:'כף', ingredient:'חמאה', grams:15 },
+  { id:'cv30', unitType:'כף', ingredient:'אבקת אפייה / אבקת סוכר', grams:10 },
+  { id:'cv31', unitType:'כף', ingredient:'אגוזים/שקדים קצוצים', grams:6 },
+  { id:'cv32', unitType:'כף', ingredient:"אבקת ג'לטין", grams:10 },
+  { id:'cv33', unitType:'כף', ingredient:'דבש', grams:22 },
+  { id:'cv34', unitType:'כף', ingredient:'סודה לשתייה', grams:10 },
+  { id:'cv35', unitType:'כף', ingredient:'קורנפלור', grams:10 },
+  { id:'cv36', unitType:'כפית', ingredient:'אבקת אפייה / אבקת סוכר', grams:3 },
+  { id:'cv37', unitType:'כפית', ingredient:'מלח', grams:6 },
+  { id:'cv38', unitType:'כפית', ingredient:'סודה לשתייה', grams:3 },
+  { id:'cv39', unitType:'כפית', ingredient:'סוכר', grams:4 },
+  { id:'cv40', unitType:'כפית', ingredient:'סוכר חום גדוש', grams:5 },
+  { id:'cv41', unitType:'כפית', ingredient:'קמח', grams:3 },
+];
+
+/* ─── Utils ──────────────────────────────────────────────── */
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function useLS(key, def) {
+  const [val, setVal] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
+    catch { return def; }
+  });
+  const set = useCallback(v => {
+    setVal(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch(e) { alert('שגיאה בשמירה — אחסון מלא?'); }
+      return next;
+    });
+  }, [key]);
+  return [val, set];
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function getSocialIcon(url) {
+  if (!url) return null;
+  if (url.includes('instagram')) return '📸';
+  if (url.includes('tiktok')) return '🎵';
+  if (url.includes('facebook') || url.includes('fb.')) return '👥';
+  return '🔗';
+}
+
+/* ─── Modal ──────────────────────────────────────────────── */
+function Modal({ title, onClose, children, wide }) {
+  useEffect(() => {
+    const esc = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box" style={wide ? {maxWidth:640} : {}}>
+        <div className="flex justify-between items-center mb-5">
+          <h2 style={{fontSize:'1.2rem', fontWeight:700, color:'#1f2937'}}>{title}</h2>
+          <button onClick={onClose} style={{background:'none', border:'none', fontSize:'1.4rem', cursor:'pointer', color:'#9ca3af', lineHeight:1}}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Confirm Dialog ─────────────────────────────────────── */
+function Confirm({ message, onConfirm, onCancel }) {
+  return (
+    <Modal title="אישור מחיקה" onClose={onCancel}>
+      <p style={{color:'#374151', marginBottom:20}}>{message}</p>
+      <div className="flex gap-3 justify-end">
+        <button className="btn-secondary" onClick={onCancel}>ביטול</button>
+        <button className="btn-danger" onClick={onConfirm}>מחק</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ─── NavBar ─────────────────────────────────────────────── */
+function NavBar({ route, navigate }) {
+  return (
+    <nav style={{background:'white', borderBottom:'1px solid #f3f4f6', position:'sticky', top:0, zIndex:100, boxShadow:'0 1px 8px rgba(0,0,0,0.06)'}}>
+      <div style={{maxWidth:900, margin:'0 auto', padding:'0 16px', height:58, display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+        <button onClick={() => navigate({page:'home'})} style={{background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:8}}>
+          <span style={{fontSize:'1.6rem'}}>🍽️</span>
+          <span style={{fontWeight:800, fontSize:'1.1rem', color:'#1f2937'}}>המתכונים שלי</span>
+        </button>
+        <div className="flex items-center gap-1">
+          {route.page !== 'home' && (
+            <button className="nav-link" onClick={() => navigate({page:'home'})}>🏠 ראשי</button>
+          )}
+          <button className={`nav-link${route.page==='conversion'?' active':''}`} onClick={() => navigate({page:'conversion'})}>
+            ⚖️ מחשבון המרה
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ─── Breadcrumb ─────────────────────────────────────────── */
+function Breadcrumb({ items }) {
+  return (
+    <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:20, fontSize:'0.85rem', color:'#9ca3af', flexWrap:'wrap'}}>
+      {items.map((it, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span>›</span>}
+          {it.onClick
+            ? <button onClick={it.onClick} style={{background:'none', border:'none', color:'#f97316', cursor:'pointer', fontWeight:600, padding:0, fontSize:'0.85rem'}}>{it.label}</button>
+            : <span style={{color:'#374151', fontWeight: i===items.length-1 ? 600 : 400}}>{it.label}</span>
+          }
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+/* ─── HomePage ───────────────────────────────────────────── */
+function AddCategoryModal({ onClose, onAdd }) {
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('🍽️');
+  const icons = ['🍽️','🥘','🥧','🧆','🥑','🍕','🍜','🍣','🥩','🫕','🥞','🍰','🫙','🥒','🫐','🍓','🥝','🍋','🫚','🥣'];
+  const colors = ['#fef3c7','#ffedd5','#fce7f3','#d1fae5','#dbeafe','#ede9fe','#fecaca','#e0f2fe','#f0fdf4','#fdf2f8'];
+  const [color, setColor] = useState('#fef3c7');
+  return (
+    <Modal title="הוספת קטגוריה חדשה" onClose={onClose}>
+      <div style={{display:'flex', flexDirection:'column', gap:14}}>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>שם הקטגוריה</label>
+          <input className="input-field" value={name} onChange={e=>setName(e.target.value)} placeholder="למשל: מאפים שכניות..." autoFocus />
+        </div>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:8}}>אייקון</label>
+          <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+            {icons.map(ic => (
+              <button key={ic} onClick={() => setIcon(ic)} style={{fontSize:'1.4rem', background: ic===icon ? '#fff7ed':'transparent', border: ic===icon ? '2px solid #f97316':'2px solid transparent', borderRadius:8, padding:'4px 6px', cursor:'pointer'}}>
+                {ic}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:8}}>צבע רקע</label>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+            {colors.map(c => (
+              <button key={c} onClick={() => setColor(c)} style={{width:32, height:32, borderRadius:8, background:c, border: c===color ? '2.5px solid #374151':'2px solid transparent', cursor:'pointer'}} />
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end" style={{marginTop:8}}>
+          <button className="btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn-primary" onClick={() => { if(name.trim()) { onAdd({id:genId(), name:name.trim(), icon, color}); onClose(); }}}>הוסף קטגוריה</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function HomePage({ categories, navigate, onAddCategory, onDeleteCategory }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  return (
+    <div style={{maxWidth:900, margin:'0 auto', padding:'28px 16px'}}>
+      <div style={{marginBottom:28}}>
+        <h1 style={{fontSize:'1.8rem', fontWeight:800, color:'#1f2937', marginBottom:6}}>קטגוריות 🗂️</h1>
+        <p style={{color:'#6b7280', fontSize:'0.95rem'}}>בחרו קטגוריה כדי לראות את המתכונים</p>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:16, marginBottom:24}}>
+        {categories.map(cat => (
+          <div key={cat.id} style={{position:'relative'}} className="group">
+            <div className="card-hover" onClick={() => navigate({page:'category', categoryId:cat.id})}
+              style={{background:cat.color, borderRadius:18, padding:'28px 12px', textAlign:'center', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.07)', minHeight:130, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10}}>
+              <span style={{fontSize:'2.6rem', lineHeight:1}}>{cat.icon}</span>
+              <span style={{fontWeight:700, fontSize:'0.95rem', color:'#1f2937'}}>{cat.name}</span>
+            </div>
+            {!['cat1','cat2','cat3','cat4','cat5','cat6'].includes(cat.id) && (
+              <button onClick={e => { e.stopPropagation(); setConfirmDel(cat); }}
+                style={{position:'absolute', top:8, left:8, background:'rgba(255,255,255,0.85)', border:'none', borderRadius:6, width:24, height:24, cursor:'pointer', fontSize:'0.8rem', display:'flex', alignItems:'center', justifyContent:'center', opacity:0}}
+                className="group-hover:opacity-100"
+                onMouseEnter={e => e.currentTarget.style.opacity=1} onMouseLeave={e => e.currentTarget.style.opacity=0}>
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="card-hover" onClick={() => setShowAdd(true)}
+          style={{background:'white', borderRadius:18, padding:'28px 12px', textAlign:'center', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.07)', minHeight:130, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, border:'2px dashed #d1d5db'}}>
+          <span style={{fontSize:'2rem', color:'#9ca3af'}}>+</span>
+          <span style={{fontWeight:600, fontSize:'0.9rem', color:'#6b7280'}}>הוסף קטגוריה</span>
+        </div>
+      </div>
+      {showAdd && <AddCategoryModal onClose={() => setShowAdd(false)} onAdd={onAddCategory} />}
+      {confirmDel && (
+        <Confirm message={`למחוק את הקטגוריה "${confirmDel.name}"? כל המתכונים בה יימחקו.`}
+          onConfirm={() => { onDeleteCategory(confirmDel.id); setConfirmDel(null); }}
+          onCancel={() => setConfirmDel(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ─── CategoryPage ───────────────────────────────────────── */
+function RecipeCard({ recipe, onClick, onDelete }) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  return (
+    <div style={{position:'relative'}}>
+      <div className="card-hover" onClick={onClick}
+        style={{background:'white', borderRadius:16, overflow:'hidden', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.07)', border:'1px solid #f3f4f6'}}>
+        {recipe.coverImage
+          ? <img src={recipe.coverImage} alt={recipe.name} style={{width:'100%', height:140, objectFit:'cover'}} />
+          : <div style={{width:'100%', height:100, background:'linear-gradient(135deg, #fff7ed, #fef3c7)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'2.5rem'}}>🍴</div>
+        }
+        <div style={{padding:'12px 14px'}}>
+          <p style={{fontWeight:700, fontSize:'1rem', color:'#1f2937'}}>{recipe.name}</p>
+          {recipe.ingredients.length > 0 && (
+            <p style={{color:'#9ca3af', fontSize:'0.8rem', marginTop:4}}>{recipe.ingredients.length} מצרכים</p>
+          )}
+        </div>
+      </div>
+      <button onClick={e => { e.stopPropagation(); setConfirmDel(true); }}
+        style={{position:'absolute', top:8, left:8, background:'rgba(255,255,255,0.9)', border:'none', borderRadius:6, width:26, height:26, cursor:'pointer', fontSize:'0.75rem', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 1px 4px rgba(0,0,0,0.15)'}}>
+        🗑️
+      </button>
+      {confirmDel && (
+        <Confirm message={`למחוק את המתכון "${recipe.name}"?`}
+          onConfirm={() => { onDelete(recipe.id); setConfirmDel(false); }}
+          onCancel={() => setConfirmDel(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ─── Text Paste Parser ──────────────────────────────────── */
+/* Returns true for ingredient "lines" that are actually sub-headers or irrelevant labels */
+function isIngSubHeader(text) {
+  if (!text) return true;
+  if (text.endsWith(':')) return true; // "לקוביות התפוחים:", "לבלילת העוגה:"
+  if (/^(המרכיבים|טבלת המרות|החומרים|הרכיבים|חומרים|מרכיבים|רכיבים|לקישוט|להגשה|ציפוי|תוספות)$/.test(text)) return true;
+  // Short line (≤4 words), no digits, no measurement keywords → probably a section label
+  const hasDigit = /\d/.test(text);
+  const hasMeasure = /כוס|כף|כפית|גרם|ק"ג|מ"ל|ליטר|יח'|יחידות|חבילה|שקית|קופסא|קופסה|מיכל/.test(text);
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  return !hasDigit && !hasMeasure && wordCount <= 4;
+}
+
+/* Try to split a text block into step texts using numbered/bullet markers */
+function extractStepTexts(text) {
+  const patterns = [
+    /(?:^|\s+)\d{1,2}[.)]\s+/,   // "1. " or "2) "
+    /(?:^|\s+)0\d\s+/,             // "01 " "02 " zero-padded
+    /(?:^|\s+)שלב\s*\d+\s*/,       // "שלב 1 " "שלב2"
+    /(?:^|\s+)\d{1,2}:\s+/,         // "1: "
+  ];
+  for (const pat of patterns) {
+    const parts = text.split(pat).map(s => s.trim()).filter(s => s.length > 3);
+    if (parts.length > 1) return parts;
+  }
+  return null; // no split found
+}
+
+function parseRecipeText(raw) {
+  // Keep original lines including empty ones (for paragraph detection in steps)
+  const lines = raw.split('\n').map(l => l.trim());
+
+  const reIngHeader = /^(מצרכים|רשימת מצרכים|חומרים|רכיבים|המרכיבים|ל[א-ת]{2,})[\s:]*$/;
+  const reStepHeader = /^(הכנה|אופן הכנה|שיטת הכנה|הוראות הכנה|דרך הכנה|הוראות|שלבי הכנה|אופן ההכנה|ההכנה|הכנת|תהליך הכנה)[\s:]*$/;
+  const reNumLine = /^\d+[.):\s]\s*.+/;
+  const reBullet = /^[-•*·▪◦➤→✓]\s+/;
+
+  // Collect lines into sections; preserve empty lines as PARA_BREAK in steps
+  let ingLines = [], stepLines = [], section = null;
+  for (const line of lines) {
+    if (!line) {
+      if (section === 'step') stepLines.push(''); // paragraph separator
+      continue;
+    }
+    if (reIngHeader.test(line)) { section = 'ing'; continue; }
+    if (reStepHeader.test(line)) { section = 'step'; continue; }
+    if (section === 'ing') ingLines.push(line);
+    else if (section === 'step') stepLines.push(line);
+    else ingLines.push(line);
+  }
+
+  // Auto-detect boundary if no step section header was found
+  if (stepLines.length === 0 && ingLines.length > 0) {
+    const nonEmptyIng = ingLines.filter(Boolean);
+    const firstNumIdx = nonEmptyIng.findIndex(l => reNumLine.test(l));
+    if (firstNumIdx > 0) {
+      stepLines = nonEmptyIng.slice(firstNumIdx); ingLines = nonEmptyIng.slice(0, firstNumIdx);
+    } else if (firstNumIdx === 0) {
+      stepLines = nonEmptyIng; ingLines = [];
+    } else {
+      const firstLongIdx = nonEmptyIng.findIndex(l => l.length > 55);
+      if (firstLongIdx > 0) { stepLines = nonEmptyIng.slice(firstLongIdx); ingLines = nonEmptyIng.slice(0, firstLongIdx); }
+      else { stepLines = nonEmptyIng; ingLines = []; }
+    }
+  }
+
+  // ── Parse ingredients: strip numbering then filter sub-headers ──
+  const ingredients = ingLines
+    .filter(Boolean)
+    .map(l => l.replace(reBullet, '').replace(/^\d+[.):\s]+\s*/, '').trim())
+    .filter(l => l.length > 0 && !isIngSubHeader(l))
+    .map(text => ({ id: genId(), text }));
+
+  // ── Parse steps: split by paragraphs, then try inline number splitting ──
+  // Group stepLines into paragraphs (separated by empty lines)
+  const paragraphs = [];
+  let curPara = [];
+  for (const line of stepLines) {
+    if (line === '') {
+      if (curPara.length > 0) { paragraphs.push(curPara.join(' ')); curPara = []; }
+    } else {
+      curPara.push(line);
+    }
+  }
+  if (curPara.length > 0) paragraphs.push(curPara.join(' '));
+
+  let stepTexts = [];
+  if (paragraphs.length === 0) {
+    stepTexts = [];
+  } else if (paragraphs.length === 1) {
+    // Single block — try inline splitting
+    const split = extractStepTexts(paragraphs[0]);
+    if (split && split.length > 1) {
+      stepTexts = split;
+    } else if (paragraphs[0].length > 180) {
+      // Very long single block — split on sentence boundaries as last resort
+      const sentences = paragraphs[0].split(/\.\s+(?=[א-ת"'])/).map(s => s.trim()).filter(s => s.length > 8);
+      stepTexts = sentences.length > 1 ? sentences : [paragraphs[0]];
+    } else {
+      stepTexts = [paragraphs[0]];
+    }
+  } else {
+    // Multiple paragraphs — each paragraph is a step (check for inline numbers within each)
+    for (const para of paragraphs) {
+      const split = extractStepTexts(para);
+      if (split && split.length > 1) stepTexts.push(...split);
+      else stepTexts.push(para.replace(/^\d+[.):\s]+\s*/, '').trim());
+    }
+  }
+
+  const steps = stepTexts
+    .map(t => t.replace(/^\d+[.):\s]+\s*/, '').replace(reBullet, '').trim())
+    .filter(t => t.length > 0)
+    .map(text => ({ id: genId(), text, image: null, videoUrl: '' }));
+
+  return { ingredients, steps };
+}
+
+/* ─── PasteTextModal ─────────────────────────────────────── */
+function ImportFromUrlModal({ onClose, onImport }) {
+  const [name, setName] = useState('');
+  const [text, setText] = useState('');
+  const [parsed, setParsed] = useState(null); // null = not yet parsed
+
+  function doParse() {
+    if (!text.trim()) return;
+    setParsed(parseRecipeText(text));
+  }
+
+  function handleCreate() {
+    if (!name.trim() || !parsed) return;
+    onImport({ name: name.trim(), ingredients: parsed.ingredients, steps: parsed.steps });
+    onClose();
+  }
+
+  return (
+    <Modal title="📋 הכנסת מתכון מטקסט" onClose={onClose} wide>
+      {!parsed ? (
+        <div style={{display:'flex', flexDirection:'column', gap:14}}>
+          <div>
+            <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>שם המתכון</label>
+            <input className="input-field" value={name} onChange={e=>setName(e.target.value)} placeholder="למשל: עוגת גבינה..." autoFocus />
+          </div>
+          <div>
+            <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>טקסט המתכון</label>
+            <p style={{fontSize:'0.8rem', color:'#6b7280', marginBottom:8, lineHeight:1.5}}>
+              העתיקו והדביקו את כל הטקסט — מצרכים + הוראות הכנה ביחד. האפליקציה תזהה אוטומטית מה מצרך ומה שלב.
+            </p>
+            <textarea className="input-field" value={text} onChange={e=>setText(e.target.value)}
+              placeholder={"מצרכים\n2 כוסות קמח\n1 כוס סוכר\n3 ביצים\n\nהכנה\n1. מחממים תנור ל-180 מעלות\n2. מערבבים את כל החומרים יחד\n3. אופים 35 דקות"}
+              rows={12} style={{resize:'vertical', fontFamily:'monospace', fontSize:'0.88rem', lineHeight:1.6}} />
+          </div>
+          <div style={{background:'#f8fafc', borderRadius:10, padding:'10px 14px'}}>
+            <p style={{fontSize:'0.8rem', color:'#6b7280', lineHeight:1.6}}>
+              💡 <strong>טיפ:</strong> אם בטקסט יש כותרות כמו <strong>"מצרכים"</strong> ו-<strong>"הכנה"</strong> הפרסור יהיה מדויק יותר. גם טקסט ללא כותרות עובד.
+            </p>
+          </div>
+          <div className="flex gap-3 justify-end" style={{marginTop:4}}>
+            <button className="btn-secondary" onClick={onClose}>ביטול</button>
+            <button className="btn-primary" onClick={doParse} disabled={!text.trim()}>✨ חלץ מתכון</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{display:'flex', flexDirection:'column', gap:14}}>
+          {/* Summary */}
+          <div style={{background:'#f0fdf4', border:'1px solid #86efac', borderRadius:12, padding:'12px 16px', display:'flex', gap:24}}>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:'1.5rem', fontWeight:800, color:'#15803d'}}>{parsed.ingredients.length}</div>
+              <div style={{fontSize:'0.78rem', color:'#374151'}}>מצרכים</div>
+            </div>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:'1.5rem', fontWeight:800, color:'#15803d'}}>{parsed.steps.length}</div>
+              <div style={{fontSize:'0.78rem', color:'#374151'}}>שלבי הכנה</div>
+            </div>
+            <div style={{flex:1, fontSize:'0.82rem', color:'#15803d', display:'flex', alignItems:'center'}}>
+              ✅ נראה טוב? לחצו "צור מתכון" — תוכלו לערוך הכל בפנים.
+            </div>
+          </div>
+
+          {/* Ingredients preview */}
+          {parsed.ingredients.length > 0 && (
+            <div>
+              <p style={{fontSize:'0.85rem', fontWeight:700, color:'#374151', marginBottom:6}}>🥦 מצרכים שזוהו:</p>
+              <div style={{background:'#fafafa', borderRadius:10, padding:'10px 14px', maxHeight:130, overflowY:'auto', fontSize:'0.85rem', color:'#374151', lineHeight:1.8}}>
+                {parsed.ingredients.map((i,idx) => <div key={i.id}>{idx+1}. {i.text}</div>)}
+              </div>
+            </div>
+          )}
+
+          {/* Steps preview */}
+          {parsed.steps.length > 0 && (
+            <div>
+              <p style={{fontSize:'0.85rem', fontWeight:700, color:'#374151', marginBottom:6}}>📋 שלבים שזוהו:</p>
+              <div style={{background:'#fafafa', borderRadius:10, padding:'10px 14px', maxHeight:150, overflowY:'auto', fontSize:'0.85rem', color:'#374151', lineHeight:1.8}}>
+                {parsed.steps.map((s,idx) => <div key={s.id} style={{marginBottom:4}}><strong>{idx+1}.</strong> {s.text}</div>)}
+              </div>
+            </div>
+          )}
+
+          {/* Name field */}
+          <div>
+            <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>שם המתכון</label>
+            <input className="input-field" value={name} onChange={e=>setName(e.target.value)} placeholder="שם המתכון..." />
+          </div>
+
+          <div className="flex gap-3 justify-end" style={{marginTop:4}}>
+            <button className="btn-secondary" onClick={()=>setParsed(null)}>← חזרה לעריכה</button>
+            <button className="btn-primary" onClick={handleCreate} disabled={!name.trim()}>✨ צור מתכון</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function AddRecipeModal({ onClose, onAdd }) {
+  const [name, setName] = useState('');
+  return (
+    <Modal title="מתכון חדש" onClose={onClose}>
+      <div style={{display:'flex', flexDirection:'column', gap:14}}>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>שם המתכון</label>
+          <input className="input-field" value={name} onChange={e=>setName(e.target.value)} placeholder="למשל: עוגת שוקולד פאדג'..." autoFocus
+            onKeyDown={e => { if(e.key==='Enter' && name.trim()) { onAdd(name.trim()); onClose(); }}} />
+        </div>
+        <div className="flex gap-3 justify-end" style={{marginTop:4}}>
+          <button className="btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn-primary" onClick={() => { if(name.trim()) { onAdd(name.trim()); onClose(); }}}>צור מתכון</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function CategoryPage({ categories, category, recipes, navigate, onAddRecipe, onDeleteRecipe }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const catRecipes = recipes.filter(r => r.categoryId === category.id);
+  return (
+    <div style={{maxWidth:900, margin:'0 auto', padding:'28px 16px'}}>
+      <Breadcrumb items={[{label:'ראשי', onClick:()=>navigate({page:'home'})}, {label:category.name}]} />
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24, flexWrap:'wrap', gap:12}}>
+        <div style={{display:'flex', alignItems:'center', gap:10}}>
+          <span style={{fontSize:'2rem'}}>{category.icon}</span>
+          <h1 style={{fontSize:'1.7rem', fontWeight:800, color:'#1f2937'}}>{category.name}</h1>
+          <span style={{background:'#f3f4f6', color:'#6b7280', borderRadius:20, padding:'2px 10px', fontSize:'0.8rem', fontWeight:600}}>{catRecipes.length}</span>
+        </div>
+        <div style={{display:'flex', gap:8}}>
+          <button className="btn-secondary" onClick={() => setShowImport(true)}>📋 הכנסה מטקסט</button>
+          <button className="btn-primary" onClick={() => setShowAdd(true)}>+ הוסף מתכון</button>
+        </div>
+      </div>
+      {catRecipes.length === 0
+        ? <div style={{textAlign:'center', padding:'60px 20px', color:'#9ca3af'}}>
+            <div style={{fontSize:'3rem', marginBottom:12}}>📭</div>
+            <p style={{fontWeight:600, fontSize:'1rem'}}>אין עדיין מתכונים בקטגוריה זו</p>
+            <p style={{fontSize:'0.9rem', marginTop:6}}>הוסיפו מתכון ידנית או ייבאו מקישור</p>
+          </div>
+        : <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:16}}>
+            {catRecipes.map(r => (
+              <RecipeCard key={r.id} recipe={r}
+                onClick={() => navigate({page:'recipe', recipeId:r.id})}
+                onDelete={onDeleteRecipe} />
+            ))}
+          </div>
+      }
+      {showAdd && <AddRecipeModal onClose={() => setShowAdd(false)} onAdd={name => onAddRecipe(category.id, name)} />}
+      {showImport && <ImportFromUrlModal onClose={() => setShowImport(false)} onImport={data => onAddRecipe(category.id, data.name, data)} />}
+    </div>
+  );
+}
+
+/* ─── RecipePage ─────────────────────────────────────────── */
+function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
+  const [editMode, setEditMode] = useState(!recipe.name || recipe.name === '');
+  const [name, setName] = useState(recipe.name || '');
+  const [coverImage, setCoverImage] = useState(recipe.coverImage || null);
+  const [socialLink, setSocialLink] = useState(recipe.socialLink || '');
+  const [ingredients, setIngredients] = useState(recipe.ingredients?.length ? recipe.ingredients : []);
+  const [steps, setSteps] = useState(recipe.steps?.length ? recipe.steps : []);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [dragIdx, setDragIdx] = useState(null);
+  const coverRef = useRef();
+
+  const markDirty = () => setDirty(true);
+
+  function save() {
+    const updated = { ...recipe, name, coverImage, socialLink, ingredients, steps };
+    onUpdate(updated);
+    setDirty(false);
+    setEditMode(false);
+  }
+
+  async function handleCoverUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { alert('תמונה גדולה מדי (מקסימום 3MB)'); return; }
+    const b64 = await fileToBase64(file);
+    setCoverImage(b64); markDirty();
+  }
+
+  function addIngredient() { setIngredients(p => [...p, {id:genId(), text:''}]); markDirty(); }
+  function updateIngredient(id, text) { setIngredients(p => p.map(i => i.id===id ? {...i,text} : i)); markDirty(); }
+  function removeIngredient(id) { setIngredients(p => p.filter(i => i.id!==id)); markDirty(); }
+
+  function addStep() { setSteps(p => [...p, {id:genId(), text:'', image:null, videoUrl:''}]); markDirty(); }
+  function updateStep(id, key, val) { setSteps(p => p.map(s => s.id===id ? {...s,[key]:val} : s)); markDirty(); }
+  function removeStep(id) { setSteps(p => p.filter(s => s.id!==id)); markDirty(); }
+
+  async function handleStepImage(id, e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { alert('תמונה גדולה מדי (מקסימום 3MB)'); return; }
+    const b64 = await fileToBase64(file);
+    updateStep(id, 'image', b64);
+  }
+
+  function moveStep(from, to) {
+    if (to < 0 || to >= steps.length) return;
+    const arr = [...steps];
+    const [el] = arr.splice(from, 1);
+    arr.splice(to, 0, el);
+    setSteps(arr); markDirty();
+  }
+
+  const socialIcon = getSocialIcon(socialLink);
+
+  return (
+    <div style={{maxWidth:780, margin:'0 auto', padding:'24px 16px'}}>
+      <Breadcrumb items={[
+        {label:'ראשי', onClick:()=>navigate({page:'home'})},
+        {label:category?.name||'קטגוריה', onClick:()=>navigate({page:'category', categoryId:recipe.categoryId})},
+        {label:name||'מתכון חדש'},
+      ]} />
+
+      {/* Header bar */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10}}>
+        <div style={{display:'flex', alignItems:'center', gap:10}}>
+          {editMode
+            ? <input className="input-field" value={name} onChange={e=>{setName(e.target.value);markDirty();}} placeholder="שם המתכון..." style={{fontSize:'1.3rem', fontWeight:700, width:'auto', minWidth:200}} />
+            : <h1 style={{fontSize:'1.5rem', fontWeight:800, color:'#1f2937'}}>{name}</h1>
+          }
+          {!editMode && socialLink && (
+            <a href={socialLink} target="_blank" rel="noopener noreferrer" style={{fontSize:'1.4rem', textDecoration:'none'}} title={socialLink}>{socialIcon}</a>
+          )}
+        </div>
+        <div style={{display:'flex', gap:8}}>
+          {editMode ? (
+            <>
+              <button className="btn-secondary" onClick={()=>{setEditMode(false);setDirty(false);setName(recipe.name);setCoverImage(recipe.coverImage);setSocialLink(recipe.socialLink||'');setIngredients(recipe.ingredients||[]);setSteps(recipe.steps||[]);}}>ביטול</button>
+              <button className="btn-primary" onClick={save}>💾 שמור</button>
+            </>
+          ) : (
+            <>
+              {dirty && <button className="btn-primary" onClick={save}>💾 שמור</button>}
+              <button className="btn-secondary" onClick={()=>setEditMode(true)}>✏️ עריכה</button>
+              <button className="btn-danger" onClick={()=>setConfirmDel(true)}>🗑️</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Cover image */}
+      <div style={{marginBottom:24}}>
+        {coverImage
+          ? <div style={{position:'relative', borderRadius:16, overflow:'hidden'}}>
+              <img src={coverImage} alt="תמונה ראשית" style={{width:'100%', maxHeight:320, objectFit:'cover', display:'block'}} />
+              {editMode && (
+                <button onClick={() => {setCoverImage(null); markDirty();}}
+                  style={{position:'absolute', top:10, left:10, background:'rgba(0,0,0,0.55)', color:'white', border:'none', borderRadius:8, padding:'5px 10px', cursor:'pointer', fontSize:'0.85rem'}}>
+                  הסר תמונה
+                </button>
+              )}
+            </div>
+          : editMode && (
+              <div onClick={()=>coverRef.current?.click()}
+                style={{border:'2px dashed #d1d5db', borderRadius:16, padding:'32px', textAlign:'center', cursor:'pointer', background:'#fafafa', transition:'border-color 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor='#f97316'}
+                onMouseLeave={e=>e.currentTarget.style.borderColor='#d1d5db'}>
+                <div style={{fontSize:'2rem', marginBottom:8}}>📷</div>
+                <p style={{color:'#6b7280', fontSize:'0.9rem'}}>לחצו להוספת תמונה ראשית</p>
+                <p style={{color:'#9ca3af', fontSize:'0.75rem'}}>מקסימום 3MB</p>
+              </div>
+            )
+        }
+        <input ref={coverRef} type="file" accept="image/*" onChange={handleCoverUpload} style={{display:'none'}} />
+      </div>
+
+      {/* Social link (edit mode) */}
+      {editMode && (
+        <div style={{marginBottom:20}}>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>קישור לרשת חברתית (אינסטגרם / טיקטוק / פייסבוק)</label>
+          <input className="input-field" value={socialLink} onChange={e=>{setSocialLink(e.target.value);markDirty();}} placeholder="https://www.instagram.com/..." />
+        </div>
+      )}
+
+      {/* Ingredients */}
+      <div style={{background:'white', borderRadius:16, padding:'20px', marginBottom:20, boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
+          <div className="section-title"><span>🥦</span> מצרכים</div>
+          {editMode && <button className="btn-secondary" style={{fontSize:'0.82rem', padding:'5px 12px'}} onClick={addIngredient}>+ הוסף מצרך</button>}
+        </div>
+        {ingredients.length === 0 && !editMode && <p style={{color:'#9ca3af', fontSize:'0.9rem'}}>לא הוזנו מצרכים</p>}
+        {ingredients.map((ing, idx) => (
+          <div key={ing.id} className="ingredient-row">
+            <span style={{color:'#f97316', fontWeight:700, minWidth:22, fontSize:'0.9rem'}}>{idx+1}.</span>
+            {editMode
+              ? <>
+                  <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="מצרך..." style={{flex:1}} />
+                  <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
+                </>
+              : <span style={{color:'#374151', fontSize:'0.95rem'}}>{ing.text}</span>
+            }
+          </div>
+        ))}
+        {editMode && (
+          <button onClick={addIngredient} style={{marginTop:8, background:'none', border:'1.5px dashed #d1d5db', borderRadius:10, padding:'7px 14px', color:'#6b7280', cursor:'pointer', fontSize:'0.85rem', width:'100%'}}>
+            + הוסף מצרך
+          </button>
+        )}
+      </div>
+
+      {/* Steps */}
+      <div style={{background:'white', borderRadius:16, padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
+          <div className="section-title"><span>📋</span> שלבי הכנה</div>
+          {editMode && <button className="btn-secondary" style={{fontSize:'0.82rem', padding:'5px 12px'}} onClick={addStep}>+ הוסף שלב</button>}
+        </div>
+        {steps.length === 0 && !editMode && <p style={{color:'#9ca3af', fontSize:'0.9rem'}}>לא הוזנו שלבי הכנה</p>}
+        {steps.map((step, idx) => (
+          <StepCard key={step.id} step={step} idx={idx} total={steps.length} editMode={editMode}
+            onUpdate={(key,val)=>updateStep(step.id,key,val)}
+            onRemove={()=>removeStep(step.id)}
+            onMoveUp={()=>moveStep(idx,idx-1)}
+            onMoveDown={()=>moveStep(idx,idx+1)}
+            onImageUpload={e=>handleStepImage(step.id,e)} />
+        ))}
+        {editMode && (
+          <button onClick={addStep} style={{marginTop:8, background:'none', border:'1.5px dashed #d1d5db', borderRadius:12, padding:'12px 14px', color:'#6b7280', cursor:'pointer', fontSize:'0.85rem', width:'100%'}}>
+            + הוסף שלב הכנה
+          </button>
+        )}
+      </div>
+
+      {confirmDel && (
+        <Confirm message={`למחוק את המתכון "${name}"?`}
+          onConfirm={() => { onDelete(recipe.id); navigate({page:'category', categoryId:recipe.categoryId}); }}
+          onCancel={() => setConfirmDel(false)} />
+      )}
+    </div>
+  );
+}
+
+function StepCard({ step, idx, total, editMode, onUpdate, onRemove, onMoveUp, onMoveDown, onImageUpload }) {
+  const imgRef = useRef();
+  return (
+    <div className="step-card">
+      <div style={{display:'flex', alignItems:'flex-start', gap:12}}>
+        <div style={{background:'#f97316', color:'white', borderRadius:'50%', width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'0.85rem', flexShrink:0, marginTop:4}}>
+          {idx+1}
+        </div>
+        <div style={{flex:1}}>
+          {editMode
+            ? <textarea className="input-field" value={step.text} onChange={e=>onUpdate('text',e.target.value)} placeholder="תיאור השלב..." rows={3} style={{resize:'vertical', marginBottom:10}} />
+            : <p style={{color:'#374151', fontSize:'0.95rem', lineHeight:1.6, whiteSpace:'pre-wrap'}}>{step.text || <span style={{color:'#d1d5db'}}>ריק</span>}</p>
+          }
+
+          {/* Step image */}
+          {step.image
+            ? <div style={{marginTop:10, position:'relative', display:'inline-block'}}>
+                <img src={step.image} alt={`שלב ${idx+1}`} style={{maxWidth:'100%', maxHeight:200, borderRadius:10, objectFit:'cover', display:'block'}} />
+                {editMode && (
+                  <button onClick={()=>onUpdate('image',null)} style={{position:'absolute', top:6, left:6, background:'rgba(0,0,0,0.55)', color:'white', border:'none', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:'0.75rem'}}>
+                    הסר
+                  </button>
+                )}
+              </div>
+            : editMode && (
+                <button onClick={()=>imgRef.current?.click()} style={{marginTop:8, background:'#f9fafb', border:'1.5px dashed #d1d5db', borderRadius:8, padding:'6px 12px', color:'#6b7280', cursor:'pointer', fontSize:'0.82rem'}}>
+                  📷 הוסף תמונה לשלב
+                </button>
+              )
+          }
+          <input ref={imgRef} type="file" accept="image/*" onChange={onImageUpload} style={{display:'none'}} />
+
+          {/* Step video URL (optional) */}
+          {editMode && (
+            <div style={{marginTop:10}}>
+              <input className="input-field" value={step.videoUrl||''} onChange={e=>onUpdate('videoUrl',e.target.value)} placeholder="קישור לסרטון (YouTube / אינסטגרם)..." style={{fontSize:'0.82rem'}} />
+            </div>
+          )}
+          {!editMode && step.videoUrl && (
+            <a href={step.videoUrl} target="_blank" rel="noopener noreferrer" style={{display:'inline-block', marginTop:8, fontSize:'0.82rem', color:'#f97316', textDecoration:'none', fontWeight:600}}>
+              🎬 צפה בסרטון
+            </a>
+          )}
+        </div>
+
+        {editMode && (
+          <div style={{display:'flex', flexDirection:'column', gap:4, flexShrink:0}}>
+            <button onClick={onMoveUp} disabled={idx===0} style={{background:'#f3f4f6', border:'none', borderRadius:6, width:28, height:28, cursor:idx===0?'not-allowed':'pointer', opacity:idx===0?0.4:1, fontSize:'0.85rem'}}>↑</button>
+            <button onClick={onMoveDown} disabled={idx===total-1} style={{background:'#f3f4f6', border:'none', borderRadius:6, width:28, height:28, cursor:idx===total-1?'not-allowed':'pointer', opacity:idx===total-1?0.4:1, fontSize:'0.85rem'}}>↓</button>
+            <button onClick={onRemove} style={{background:'#fee2e2', border:'none', borderRadius:6, width:28, height:28, cursor:'pointer', fontSize:'0.85rem', color:'#dc2626'}}>✕</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── ConversionPage ─────────────────────────────────────── */
+function ConversionPage({ conversions, setConversions }) {
+  const [unitType, setUnitType] = useState('כוס');
+  const [ingredient, setIngredient] = useState('');
+  const [qty, setQty] = useState('');
+  const [gramsInput, setGramsInput] = useState('');
+  const [result, setResult] = useState(null);
+  const [reverseResult, setReverseResult] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [filterUnit, setFilterUnit] = useState('הכל');
+
+  const unitTypes = ['כוס', 'כף', 'כפית'];
+  const filtered = conversions.filter(c => c.unitType === unitType);
+
+  function calc() {
+    if (!ingredient || !qty) { setResult(null); return; }
+    const row = conversions.find(c => c.unitType === unitType && c.ingredient === ingredient);
+    if (row) setResult((parseFloat(qty) * row.grams).toFixed(1));
+    else setResult(null);
+  }
+
+  function calcReverse() {
+    if (!ingredient || !gramsInput) { setReverseResult(null); return; }
+    const row = conversions.find(c => c.unitType === unitType && c.ingredient === ingredient);
+    if (row) setReverseResult((parseFloat(gramsInput) / row.grams).toFixed(2));
+    else setReverseResult(null);
+  }
+
+  useEffect(() => { calc(); }, [unitType, ingredient, qty]);
+  useEffect(() => { calcReverse(); }, [unitType, ingredient, gramsInput]);
+
+  function deleteConv(id) { setConversions(p => p.filter(c => c.id !== id)); }
+  function addConv(row) { setConversions(p => [...p, {...row, id:genId()}]); }
+  function updateConv(row) { setConversions(p => p.map(c => c.id===row.id ? row : c)); }
+
+  const displayUnits = ['הכל', ...unitTypes];
+  const tableData = filterUnit === 'הכל' ? conversions : conversions.filter(c => c.unitType === filterUnit);
+
+  return (
+    <div style={{maxWidth:860, margin:'0 auto', padding:'28px 16px'}}>
+      <h1 style={{fontSize:'1.7rem', fontWeight:800, color:'#1f2937', marginBottom:6}}>⚖️ מחשבון המרה</h1>
+      <p style={{color:'#6b7280', fontSize:'0.9rem', marginBottom:24}}>המרת כוסות / כפות / כפיות לגרמים</p>
+
+      {/* Calculator card */}
+      <div style={{background:'white', borderRadius:18, padding:'24px', boxShadow:'0 2px 12px rgba(0,0,0,0.07)', marginBottom:24}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:14, marginBottom:16}}>
+          <div>
+            <label style={{fontSize:'0.82rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>סוג מידה</label>
+            <select className="input-field" value={unitType} onChange={e=>{setUnitType(e.target.value); setIngredient(''); setResult(null); setReverseResult(null);}}>
+              {unitTypes.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:'0.82rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>מצרך</label>
+            <select className="input-field" value={ingredient} onChange={e=>setIngredient(e.target.value)}>
+              <option value="">-- בחר מצרך --</option>
+              {filtered.map(c => <option key={c.id} value={c.ingredient}>{c.ingredient}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Forward calc */}
+        <div style={{background:'#fff7ed', borderRadius:14, padding:'16px', marginBottom:12}}>
+          <p style={{fontSize:'0.85rem', fontWeight:700, color:'#92400e', marginBottom:10}}>כמה כוסות/כפות/כפיות → גרם</p>
+          <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+            <div style={{display:'flex', alignItems:'center', gap:8}}>
+              <input className="input-field" type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="כמות" style={{width:90}} min={0} step={0.25} />
+              <span style={{fontWeight:600, color:'#374151', whiteSpace:'nowrap'}}>{unitType} {ingredient || '...'}</span>
+            </div>
+            <span style={{color:'#9ca3af', fontWeight:600}}>=</span>
+            <span style={{fontWeight:800, fontSize:'1.2rem', color: result ? '#16a34a' : '#9ca3af'}}>
+              {result ? `${result} גרם` : '—'}
+            </span>
+          </div>
+        </div>
+
+        {/* Reverse calc */}
+        <div style={{background:'#f0fdf4', borderRadius:14, padding:'16px'}}>
+          <p style={{fontSize:'0.85rem', fontWeight:700, color:'#14532d', marginBottom:10}}>כמה גרם → כוסות/כפות/כפיות</p>
+          <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+            <div style={{display:'flex', alignItems:'center', gap:8}}>
+              <input className="input-field" type="number" value={gramsInput} onChange={e=>setGramsInput(e.target.value)} placeholder="גרמים" style={{width:100}} min={0} />
+              <span style={{fontWeight:600, color:'#374151'}}>גרם {ingredient || '...'}</span>
+            </div>
+            <span style={{color:'#9ca3af', fontWeight:600}}>=</span>
+            <span style={{fontWeight:800, fontSize:'1.2rem', color: reverseResult ? '#16a34a' : '#9ca3af'}}>
+              {reverseResult ? `${reverseResult} ${unitType}` : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Conversion table */}
+      <div style={{background:'white', borderRadius:18, padding:'24px', boxShadow:'0 2px 12px rgba(0,0,0,0.07)'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:10}}>
+          <h2 style={{fontWeight:700, fontSize:'1.1rem', color:'#1f2937'}}>טבלת המרות</h2>
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+            <div style={{display:'flex', gap:4, background:'#f3f4f6', borderRadius:10, padding:3}}>
+              {displayUnits.map(u => (
+                <button key={u} onClick={()=>setFilterUnit(u)} style={{padding:'4px 12px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:600, fontSize:'0.82rem', background: filterUnit===u ? 'white' : 'transparent', color: filterUnit===u ? '#f97316' : '#6b7280', boxShadow: filterUnit===u ? '0 1px 4px rgba(0,0,0,0.1)' : 'none'}}>
+                  {u}
+                </button>
+              ))}
+            </div>
+            <button className="btn-primary" style={{fontSize:'0.85rem', padding:'6px 14px'}} onClick={()=>setShowAddModal(true)}>+ הוסף המרה</button>
+          </div>
+        </div>
+
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9rem'}}>
+            <thead>
+              <tr style={{borderBottom:'2px solid #f3f4f6'}}>
+                <th style={{textAlign:'right', padding:'8px 10px', color:'#374151', fontWeight:700}}>יחידה</th>
+                <th style={{textAlign:'right', padding:'8px 10px', color:'#374151', fontWeight:700}}>מצרך</th>
+                <th style={{textAlign:'right', padding:'8px 10px', color:'#374151', fontWeight:700}}>גרם</th>
+                <th style={{padding:'8px 10px'}}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tableData.map(row => (
+                <tr key={row.id} style={{borderBottom:'1px solid #f9fafb'}} onMouseEnter={e=>e.currentTarget.style.background='#fafafa'} onMouseLeave={e=>e.currentTarget.style.background='white'}>
+                  <td style={{padding:'8px 10px'}}>
+                    <span style={{background: row.unitType==='כוס'?'#fff7ed':row.unitType==='כף'?'#f0fdf4':'#ede9fe', color: row.unitType==='כוס'?'#c2410c':row.unitType==='כף'?'#15803d':'#7c3aed', borderRadius:8, padding:'2px 8px', fontSize:'0.8rem', fontWeight:700}}>
+                      {row.unitType}
+                    </span>
+                  </td>
+                  <td style={{padding:'8px 10px', color:'#374151'}}>{row.ingredient}</td>
+                  <td style={{padding:'8px 10px', fontWeight:700, color:'#1f2937'}}>{row.grams}g</td>
+                  <td style={{padding:'8px 10px', textAlign:'left'}}>
+                    <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
+                      <button onClick={()=>setEditRow({...row})} style={{background:'#f3f4f6', border:'none', borderRadius:6, padding:'4px 8px', cursor:'pointer', fontSize:'0.78rem'}}>✏️</button>
+                      <button onClick={()=>setConfirmDel(row)} style={{background:'#fee2e2', border:'none', borderRadius:6, padding:'4px 8px', cursor:'pointer', fontSize:'0.78rem', color:'#dc2626'}}>✕</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {tableData.length === 0 && (
+                <tr><td colSpan={4} style={{padding:'24px', textAlign:'center', color:'#9ca3af'}}>אין ערכים בסינון זה</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showAddModal && <ConvModal title="הוספת המרה חדשה" row={{unitType:'כוס',ingredient:'',grams:''}} onClose={()=>setShowAddModal(false)} onSave={row=>{addConv(row);setShowAddModal(false);}} />}
+      {editRow && <ConvModal title="עריכת המרה" row={editRow} onClose={()=>setEditRow(null)} onSave={row=>{updateConv(row);setEditRow(null);}} />}
+      {confirmDel && (
+        <Confirm message={`למחוק את "${confirmDel.unitType} ${confirmDel.ingredient}"?`}
+          onConfirm={()=>{deleteConv(confirmDel.id);setConfirmDel(null);}}
+          onCancel={()=>setConfirmDel(null)} />
+      )}
+    </div>
+  );
+}
+
+function ConvModal({ title, row, onClose, onSave }) {
+  const [unitType, setUnitType] = useState(row.unitType);
+  const [ingredient, setIngredient] = useState(row.ingredient);
+  const [grams, setGrams] = useState(row.grams);
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div style={{display:'flex', flexDirection:'column', gap:14}}>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>סוג מידה</label>
+          <select className="input-field" value={unitType} onChange={e=>setUnitType(e.target.value)}>
+            {['כוס','כף','כפית'].map(u=><option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>מצרך</label>
+          <input className="input-field" value={ingredient} onChange={e=>setIngredient(e.target.value)} placeholder="שם המצרך" autoFocus />
+        </div>
+        <div>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>גרם (לכמות אחת)</label>
+          <input className="input-field" type="number" value={grams} onChange={e=>setGrams(e.target.value)} placeholder="למשל: 140" />
+        </div>
+        <div className="flex gap-3 justify-end" style={{marginTop:4}}>
+          <button className="btn-secondary" onClick={onClose}>ביטול</button>
+          <button className="btn-primary" onClick={()=>{if(ingredient.trim()&&grams) onSave({...row,unitType,ingredient:ingredient.trim(),grams:parseFloat(grams)});}}>שמור</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ─── App ────────────────────────────────────────────────── */
+function App() {
+  const [route, setRoute] = useState({ page: 'home' });
+  const [categories, setCategories] = useLS(SK.CATS, DEF_CATS);
+  const [recipes, setRecipes] = useLS(SK.RECIPES, []);
+  const [conversions, setConversions] = useLS(SK.CONV, DEF_CONV);
+
+  const navigate = r => { setRoute(r); window.scrollTo(0,0); };
+
+  function addCategory(cat) { setCategories(p => [...p, cat]); }
+  function deleteCategory(id) {
+    setCategories(p => p.filter(c => c.id !== id));
+    setRecipes(p => p.filter(r => r.categoryId !== id));
+  }
+
+  function addRecipe(categoryId, name, extra = {}) {
+    const { ingredients, steps, coverImage } = extra;
+    const r = { id: genId(), categoryId, name, coverImage: coverImage || null, socialLink: '', ingredients: ingredients || [], steps: steps || [] };
+    setRecipes(p => [...p, r]);
+    navigate({ page: 'recipe', recipeId: r.id });
+  }
+
+  function updateRecipe(updated) { setRecipes(p => p.map(r => r.id === updated.id ? updated : r)); }
+  function deleteRecipe(id) { setRecipes(p => p.filter(r => r.id !== id)); }
+
+  const currentRecipe = route.recipeId ? recipes.find(r => r.id === route.recipeId) : null;
+  const currentCategory = route.categoryId
+    ? categories.find(c => c.id === route.categoryId)
+    : currentRecipe
+      ? categories.find(c => c.id === currentRecipe.categoryId)
+      : null;
+
+  return (
+    <div style={{minHeight:'100vh', background:'#faf9f6'}}>
+      <NavBar route={route} navigate={navigate} />
+      <main>
+        {route.page === 'home' && (
+          <HomePage categories={categories} navigate={navigate} onAddCategory={addCategory} onDeleteCategory={deleteCategory} />
+        )}
+        {route.page === 'category' && currentCategory && (
+          <CategoryPage categories={categories} category={currentCategory} recipes={recipes} navigate={navigate}
+            onAddRecipe={addRecipe} onDeleteRecipe={deleteRecipe} />
+        )}
+        {route.page === 'recipe' && currentRecipe && (
+          <RecipePage recipe={currentRecipe} category={currentCategory} onUpdate={updateRecipe}
+            onDelete={deleteRecipe} navigate={navigate} />
+        )}
+        {route.page === 'conversion' && (
+          <ConversionPage conversions={conversions} setConversions={setConversions} />
+        )}
+        {/* Fallback */}
+        {!['home','category','recipe','conversion'].includes(route.page) && (
+          <div style={{textAlign:'center', padding:'80px 20px'}}>
+            <p style={{fontSize:'3rem'}}>🤔</p>
+            <p style={{color:'#6b7280'}}>עמוד לא נמצא</p>
+            <button className="btn-primary" style={{marginTop:16}} onClick={()=>navigate({page:'home'})}>חזרה לראשי</button>
+          </div>
+        )}
+      </main>
+      <footer style={{textAlign:'center', padding:'32px 16px', color:'#d1d5db', fontSize:'0.8rem', marginTop:40}}>
+        המתכונים שלי 🍽️ • כל הנתונים שמורים במכשיר שלך
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
