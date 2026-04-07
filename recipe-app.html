@@ -256,14 +256,40 @@ function AddCategoryModal({ onClose, onAdd }) {
   );
 }
 
-function HomePage({ categories, navigate, onAddCategory, onDeleteCategory }) {
+function HomePage({ categories, navigate, onAddCategory, onDeleteCategory, onExport, onImport }) {
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  const importRef = React.useRef();
+
+  function handleImportFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.recipes || !data.categories) { alert('קובץ לא תקין — חסרים נתונים'); return; }
+        if (window.confirm(`ייבוא ${data.recipes.length} מתכונים ו-${data.categories.length} קטגוריות.\nזה יחליף את כל הנתונים הקיימים. להמשיך?`)) {
+          onImport(data);
+        }
+      } catch { alert('קובץ לא תקין — בדקו שמדובר בקובץ JSON שיוצא מהאפליקציה'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
   return (
     <div style={{maxWidth:900, margin:'0 auto', padding:'28px 16px'}}>
-      <div style={{marginBottom:28}}>
-        <h1 style={{fontSize:'1.8rem', fontWeight:800, color:'#1f2937', marginBottom:6}}>קטגוריות 🗂️</h1>
-        <p style={{color:'#6b7280', fontSize:'0.95rem'}}>בחרו קטגוריה כדי לראות את המתכונים</p>
+      <div style={{marginBottom:28, display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12}}>
+        <div>
+          <h1 style={{fontSize:'1.8rem', fontWeight:800, color:'#1f2937', marginBottom:6}}>קטגוריות 🗂️</h1>
+          <p style={{color:'#6b7280', fontSize:'0.95rem'}}>בחרו קטגוריה כדי לראות את המתכונים</p>
+        </div>
+        <div style={{display:'flex', gap:8}}>
+          <button className="btn-secondary" style={{fontSize:'0.85rem'}} onClick={onExport}>📤 ייצוא</button>
+          <button className="btn-secondary" style={{fontSize:'0.85rem'}} onClick={() => importRef.current?.click()}>📥 ייבוא</button>
+          <input ref={importRef} type="file" accept=".json" onChange={handleImportFile} style={{display:'none'}} />
+        </div>
       </div>
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:16, marginBottom:24}}>
         {categories.map(cat => (
@@ -396,12 +422,15 @@ function parseRecipeText(raw) {
     }
   }
 
-  // ── Parse ingredients: strip numbering then filter sub-headers ──
+  // ── Parse ingredients: sub-headers become {type:'subheader'}, rest are ingredients ──
   const ingredients = ingLines
     .filter(Boolean)
     .map(l => l.replace(reBullet, '').replace(/^\d+[.):\s]+\s*/, '').trim())
-    .filter(l => l.length > 0 && !isIngSubHeader(l))
-    .map(text => ({ id: genId(), text }));
+    .filter(l => l.length > 0)
+    .map(text => isIngSubHeader(text)
+      ? { id: genId(), type: 'subheader', text: text.replace(/:$/, '') }
+      : { id: genId(), type: 'ingredient', text }
+    );
 
   // ── Parse steps: split by paragraphs, then try inline number splitting ──
   // Group stepLines into paragraphs (separated by empty lines)
@@ -632,7 +661,8 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
     setCoverImage(b64); markDirty();
   }
 
-  function addIngredient() { setIngredients(p => [...p, {id:genId(), text:''}]); markDirty(); }
+  function addIngredient() { setIngredients(p => [...p, {id:genId(), type:'ingredient', text:''}]); markDirty(); }
+  function addIngSubheader() { setIngredients(p => [...p, {id:genId(), type:'subheader', text:''}]); markDirty(); }
   function updateIngredient(id, text) { setIngredients(p => p.map(i => i.id===id ? {...i,text} : i)); markDirty(); }
   function removeIngredient(id) { setIngredients(p => p.filter(i => i.id!==id)); markDirty(); }
 
@@ -731,25 +761,57 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
       <div style={{background:'white', borderRadius:16, padding:'20px', marginBottom:20, boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
           <div className="section-title"><span>🥦</span> מצרכים</div>
-          {editMode && <button className="btn-secondary" style={{fontSize:'0.82rem', padding:'5px 12px'}} onClick={addIngredient}>+ הוסף מצרך</button>}
+          {editMode && (
+            <div style={{display:'flex', gap:6}}>
+              <button className="btn-secondary" style={{fontSize:'0.82rem', padding:'5px 12px'}} onClick={addIngSubheader}>+ כותרת</button>
+              <button className="btn-secondary" style={{fontSize:'0.82rem', padding:'5px 12px'}} onClick={addIngredient}>+ מצרך</button>
+            </div>
+          )}
         </div>
         {ingredients.length === 0 && !editMode && <p style={{color:'#9ca3af', fontSize:'0.9rem'}}>לא הוזנו מצרכים</p>}
-        {ingredients.map((ing, idx) => (
-          <div key={ing.id} className="ingredient-row">
-            <span style={{color:'#f97316', fontWeight:700, minWidth:22, fontSize:'0.9rem'}}>{idx+1}.</span>
-            {editMode
-              ? <>
-                  <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="מצרך..." style={{flex:1}} />
-                  <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
-                </>
-              : <span style={{color:'#374151', fontSize:'0.95rem'}}>{ing.text}</span>
+        {(() => {
+          let ingCount = 0;
+          return ingredients.map((ing) => {
+            if (ing.type === 'subheader') {
+              return (
+                <div key={ing.id} style={{marginTop:14, marginBottom:6}}>
+                  {editMode
+                    ? <div className="ingredient-row">
+                        <span style={{fontSize:'1rem'}}>📌</span>
+                        <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="כותרת (למשל: לבלילה, לרוטב...)" style={{flex:1, fontWeight:700}} />
+                        <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
+                      </div>
+                    : <p style={{fontWeight:700, fontSize:'0.95rem', color:'#374151', borderBottom:'1.5px solid #f3f4f6', paddingBottom:4}}>{ing.text}</p>
+                  }
+                </div>
+              );
+            } else {
+              ingCount++;
+              const num = ingCount;
+              return (
+                <div key={ing.id} className="ingredient-row">
+                  <span style={{color:'#f97316', fontWeight:700, minWidth:22, fontSize:'0.9rem'}}>{num}.</span>
+                  {editMode
+                    ? <>
+                        <input className="input-field" value={ing.text} onChange={e=>updateIngredient(ing.id, e.target.value)} placeholder="מצרך..." style={{flex:1}} />
+                        <button className="btn-danger" style={{padding:'5px 10px'}} onClick={()=>removeIngredient(ing.id)}>✕</button>
+                      </>
+                    : <span style={{color:'#374151', fontSize:'0.95rem'}}>{ing.text}</span>
+                  }
+                </div>
+              );
             }
-          </div>
-        ))}
+          });
+        })()}
         {editMode && (
-          <button onClick={addIngredient} style={{marginTop:8, background:'none', border:'1.5px dashed #d1d5db', borderRadius:10, padding:'7px 14px', color:'#6b7280', cursor:'pointer', fontSize:'0.85rem', width:'100%'}}>
-            + הוסף מצרך
-          </button>
+          <div style={{display:'flex', gap:8, marginTop:10}}>
+            <button onClick={addIngSubheader} style={{flex:1, background:'none', border:'1.5px dashed #d1d5db', borderRadius:10, padding:'7px 14px', color:'#9ca3af', cursor:'pointer', fontSize:'0.82rem'}}>
+              + כותרת (לבלילה / לרוטב...)
+            </button>
+            <button onClick={addIngredient} style={{flex:1, background:'none', border:'1.5px dashed #d1d5db', borderRadius:10, padding:'7px 14px', color:'#6b7280', cursor:'pointer', fontSize:'0.85rem'}}>
+              + הוסף מצרך
+            </button>
+          </div>
         )}
       </div>
 
@@ -1053,6 +1115,23 @@ function App() {
   function updateRecipe(updated) { setRecipes(p => p.map(r => r.id === updated.id ? updated : r)); }
   function deleteRecipe(id) { setRecipes(p => p.filter(r => r.id !== id)); }
 
+  function exportData() {
+    const data = { categories, recipes, conversions, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `המתכונים-שלי-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(data) {
+    if (data.categories) setCategories(data.categories);
+    if (data.recipes) setRecipes(data.recipes);
+    if (data.conversions) setConversions(data.conversions);
+  }
+
   const currentRecipe = route.recipeId ? recipes.find(r => r.id === route.recipeId) : null;
   const currentCategory = route.categoryId
     ? categories.find(c => c.id === route.categoryId)
@@ -1065,7 +1144,7 @@ function App() {
       <NavBar route={route} navigate={navigate} />
       <main>
         {route.page === 'home' && (
-          <HomePage categories={categories} navigate={navigate} onAddCategory={addCategory} onDeleteCategory={deleteCategory} />
+          <HomePage categories={categories} navigate={navigate} onAddCategory={addCategory} onDeleteCategory={deleteCategory} onExport={exportData} onImport={importData} />
         )}
         {route.page === 'category' && currentCategory && (
           <CategoryPage categories={categories} category={currentCategory} recipes={recipes} navigate={navigate}
