@@ -406,7 +406,7 @@ function parseRecipeText(raw) {
 
   const reIngHeader = /^(מצרכים|רשימת מצרכים|חומרים|רכיבים|המרכיבים|ל[א-ת]{2,})[\s:]*$/;
   const reStepHeader = /^(הכנה|אופן הכנה|שיטת הכנה|הוראות הכנה|דרך הכנה|הוראות|שלבי הכנה|אופן ההכנה|ההכנה|הכנת|תהליך הכנה)[\s:]*$/;
-  const reNumLine = /^\d+[.):\s]\s*.+/;
+  const reNumLine = /^\d+[.):\-]\s*.+/;
   const reBullet = /^[-•*·▪◦➤→✓]\s+/;
 
   // Collect lines into sections; preserve empty lines as PARA_BREAK in steps
@@ -441,7 +441,7 @@ function parseRecipeText(raw) {
   // ── Parse ingredients: sub-headers become {type:'subheader'}, rest are ingredients ──
   const ingredients = ingLines
     .filter(Boolean)
-    .map(l => l.replace(reBullet, '').replace(/^\d+[.):\s]+\s*/, '').trim())
+    .map(l => l.replace(reBullet, '').replace(/^\d+[.):\-]\s*/, '').trim())
     .filter(l => l.length > 0)
     .map(text => isIngSubHeader(text)
       ? { id: genId(), type: 'subheader', text: text.replace(/:$/, '') }
@@ -765,10 +765,21 @@ function RecipePage({ recipe, category, onUpdate, onDelete, navigate }) {
         <input ref={coverRef} type="file" accept="image/*" onChange={handleCoverUpload} style={{display:'none'}} />
       </div>
 
-      {/* Social link (edit mode) */}
+      {/* Social link */}
+      {!editMode && socialLink && (
+        <a href={socialLink} target="_blank" rel="noopener noreferrer"
+          style={{display:'flex', alignItems:'center', gap:10, background:'white', borderRadius:12, padding:'12px 16px', marginBottom:20, boxShadow:'0 2px 8px rgba(0,0,0,0.06)', textDecoration:'none', border:'1.5px solid #f3f4f6', color:'#374151'}}>
+          <span style={{fontSize:'1.4rem'}}>{getSocialIcon(socialLink)}</span>
+          <div style={{flex:1, minWidth:0}}>
+            <p style={{fontWeight:600, fontSize:'0.85rem', color:'#374151', marginBottom:2}}>קישור מקורי</p>
+            <p style={{fontSize:'0.78rem', color:'#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{socialLink}</p>
+          </div>
+          <span style={{color:'#f97316', fontWeight:700, fontSize:'0.82rem', flexShrink:0}}>פתח ←</span>
+        </a>
+      )}
       {editMode && (
         <div style={{marginBottom:20}}>
-          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>קישור לרשת חברתית (אינסטגרם / טיקטוק / פייסבוק)</label>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:5}}>קישור לרשת חברתית / מתכון מקורי</label>
           <input className="input-field" value={socialLink} onChange={e=>{setSocialLink(e.target.value);markDirty();}} placeholder="https://www.instagram.com/..." />
         </div>
       )}
@@ -1178,9 +1189,21 @@ function App() {
   }
 
   function importData(data) {
-    if (data.categories) setCategories(data.categories);
-    if (data.recipes) setRecipes(data.recipes);
-    if (data.conversions) setConversions(data.conversions);
+    if (data.categories) setCategories(prev => {
+      const existingIds = new Set(prev.map(c => c.id));
+      const newOnes = data.categories.filter(c => !existingIds.has(c.id));
+      return [...prev, ...newOnes];
+    });
+    if (data.recipes) setRecipes(prev => {
+      const existingIds = new Set(prev.map(r => r.id));
+      const newOnes = data.recipes.filter(r => !existingIds.has(r.id));
+      return [...prev, ...newOnes];
+    });
+    if (data.conversions) setConversions(prev => {
+      const existingIds = new Set(prev.map(c => c.id));
+      const newOnes = data.conversions.filter(c => !existingIds.has(c.id));
+      return [...prev, ...newOnes];
+    });
   }
 
   const currentRecipe = route.recipeId ? recipes.find(r => r.id === route.recipeId) : null;
