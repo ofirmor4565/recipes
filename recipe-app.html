@@ -241,16 +241,10 @@ function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, on
               style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
               {status==='saving' ? '⏳ שומר לענן...' : '☁️ שמור לענן עכשיו'}
             </button>
-            {gistId ? (
-              <button className="btn-secondary" onClick={handleSyncFrom} disabled={status==='saving' || status==='loading'}
-                style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
-                {status==='loading' ? '⏳ טוען...' : '🔄 טען מהענן (דרוס מקומי)'}
-              </button>
-            ) : (
-              <p style={{fontSize:'0.82rem', color:'#9ca3af', textAlign:'center'}}>
-                לאחר שמירה ראשונה לענן — יהיה אפשר לטעון מכל מכשיר
-              </p>
-            )}
+            <button className="btn-secondary" onClick={handleSyncFrom} disabled={status==='saving' || status==='loading'}
+              style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+              {status==='loading' ? '⏳ מחפש וטוען...' : '🔄 טען מהענן (דרוס מקומי)'}
+            </button>
           </div>
         )}
 
@@ -1376,11 +1370,21 @@ function App() {
   }
 
   async function syncFromCloud() {
-    if (!ghToken || !gistId) return { ok: false, msg: 'חסר Token או Gist ID' };
+    if (!ghToken) return { ok: false, msg: 'חסר Token' };
     try {
-      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-        headers: { Authorization: `token ${ghToken}`, Accept: 'application/vnd.github+json' }
-      });
+      const headers = { Authorization: `token ${ghToken}`, Accept: 'application/vnd.github+json' };
+      // אם אין Gist ID שמור — נחפש אוטומטית בין כל ה-Gists
+      let resolvedId = gistId;
+      if (!resolvedId) {
+        const listRes = await fetch('https://api.github.com/gists?per_page=100', { headers });
+        if (!listRes.ok) { const e = await listRes.json(); return { ok: false, msg: e.message || listRes.statusText }; }
+        const list = await listRes.json();
+        const found = list.find(g => g.files && g.files['recipes-backup.json']);
+        if (!found) return { ok: false, msg: 'לא נמצא גיבוי ב-GitHub — שמור לענן קודם מהמכשיר הראשי' };
+        resolvedId = found.id;
+        setGistId(resolvedId);
+      }
+      const res = await fetch(`https://api.github.com/gists/${resolvedId}`, { headers });
       if (!res.ok) { const e = await res.json(); return { ok: false, msg: e.message || res.statusText }; }
       const data = await res.json();
       const content = data.files['recipes-backup.json']?.content;
