@@ -1360,6 +1360,10 @@ function App() {
     const gid = gistId || readLS(SK.GIST_ID) || '';
     if (!tok) return { ok: false, msg: 'אין Token — הכנס Token ולחץ שמור קודם' };
     try {
+      // כתיבה מפורשת ל-localStorage לפני שליחה — מבטיח שמה שנשמר הוא המצב הנוכחי בדיוק
+      localStorage.setItem(SK.CATS,    JSON.stringify(categories));
+      localStorage.setItem(SK.RECIPES, JSON.stringify(recipes));
+      localStorage.setItem(SK.CONV,    JSON.stringify(conversions));
       const content = JSON.stringify({ categories, recipes, conversions, savedAt: new Date().toISOString() }, null, 2);
       const body = { description: 'המתכונים שלי — גיבוי אוטומטי', public: false,
         files: { 'recipes-backup.json': { content } } };
@@ -1383,7 +1387,6 @@ function App() {
     if (!tok) return { ok: false, msg: 'אין Token — הכנס Token ולחץ שמור קודם' };
     try {
       const headers = { Authorization: `Bearer ${tok}`, Accept: 'application/vnd.github+json' };
-      // אם אין Gist ID שמור — נחפש אוטומטית בין כל ה-Gists
       let resolvedId = gid;
       if (!resolvedId) {
         const listRes = await fetch('https://api.github.com/gists?per_page=100', { headers });
@@ -1400,9 +1403,14 @@ function App() {
       const content = data.files['recipes-backup.json']?.content;
       if (!content) return { ok: false, msg: 'לא נמצא קובץ גיבוי ב-Gist' };
       const parsed = JSON.parse(content);
-      if (parsed.categories) setCategories(parsed.categories);
-      if (parsed.recipes) setRecipes(parsed.recipes);
-      if (parsed.conversions) setConversions(parsed.conversions);
+      // replace מלא ומוחלט — ללא תנאים, ללא merge, בדיוק מה שהיה בענן
+      setCategories(Array.isArray(parsed.categories) ? parsed.categories : []);
+      setRecipes(Array.isArray(parsed.recipes) ? parsed.recipes : []);
+      setConversions(Array.isArray(parsed.conversions) ? parsed.conversions : DEF_CONV);
+      // כתיבה מיידית ל-localStorage כדי שגם רענון דף ישמר את המצב הנכון
+      localStorage.setItem(SK.CATS,    JSON.stringify(parsed.categories || []));
+      localStorage.setItem(SK.RECIPES, JSON.stringify(parsed.recipes || []));
+      localStorage.setItem(SK.CONV,    JSON.stringify(parsed.conversions || DEF_CONV));
       setLastSync(new Date().toISOString());
       return { ok: true };
     } catch(e) { return { ok: false, msg: e.message }; }
