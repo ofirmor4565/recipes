@@ -188,19 +188,32 @@ function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, on
 
   async function handleSyncTo() {
     setStatus('saving'); setResultMsg('');
-    const result = await onSyncTo();
+    let result;
+    try { result = await onSyncTo(); }
+    catch(e) { result = { ok: false, msg: e.message || String(e) }; }
     if (result.ok) {
-      setResultMsg(`נשמרו ${result.cats} קטגוריות, ${result.recipes} מתכונים`);
-      setStatus('saved'); setTimeout(onClose, 2500);
-    } else { setStatus('error'); setResultMsg(result.msg || ''); }
+      const msg = `נשמרו ${result.cats} קטגוריות, ${result.recipes} מתכונים`;
+      setResultMsg(msg); setStatus('saved');
+      setTimeout(onClose, 2500);
+    } else {
+      setStatus('error'); setResultMsg(result.msg || 'שגיאה לא ידועה');
+      alert('❌ שגיאה בשמירה:\n' + (result.msg || 'שגיאה לא ידועה'));
+    }
   }
   async function handleSyncFrom() {
     setStatus('loading'); setResultMsg('');
-    const result = await onSyncFrom();
+    let result;
+    try { result = await onSyncFrom(); }
+    catch(e) { result = { ok: false, msg: e.message || String(e) }; }
     if (result.ok) {
-      setResultMsg(`נטענו ${result.cats} קטגוריות, ${result.recipes} מתכונים`);
-      setStatus('loaded'); setTimeout(onClose, 2500);
-    } else { setStatus('error'); setResultMsg(result.msg || ''); }
+      const msg = `נטענו ${result.cats} קטגוריות, ${result.recipes} מתכונים`;
+      setResultMsg(msg); setStatus('loaded');
+      alert('✅ ' + msg);
+      setTimeout(onClose, 500);
+    } else {
+      setStatus('error'); setResultMsg(result.msg || 'שגיאה לא ידועה');
+      alert('❌ שגיאה בטעינה:\n' + (result.msg || 'שגיאה לא ידועה'));
+    }
   }
 
   return (
