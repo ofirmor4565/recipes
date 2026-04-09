@@ -178,52 +178,49 @@ function Confirm({ message, onConfirm, onCancel }) {
 }
 
 /* ─── SyncModal ──────────────────────────────────────────── */
-function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, onSyncFrom }) {
+function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, onSyncFrom, onResetGistId }) {
   const [inputToken, setInputToken] = useState(token || '');
   const [showToken, setShowToken] = useState(false);
-  const [status, setStatus] = useState(null); // null | 'saving' | 'loading' | 'saved' | 'loaded' | 'error'
-  const [errMsg, setErrMsg] = useState('');
+  const [status, setStatus] = useState(null);
+  const [resultMsg, setResultMsg] = useState('');
   const tokenChanged = inputToken.trim() !== token;
   const busy = status === 'saving' || status === 'loading';
 
   async function handleSyncTo() {
-    setStatus('saving'); setErrMsg('');
+    setStatus('saving'); setResultMsg('');
     const result = await onSyncTo();
-    if (result.ok) { setStatus('saved'); setTimeout(onClose, 1800); }
-    else { setStatus('error'); setErrMsg(result.msg || ''); }
+    if (result.ok) {
+      setResultMsg(`נשמרו ${result.cats} קטגוריות, ${result.recipes} מתכונים`);
+      setStatus('saved'); setTimeout(onClose, 2500);
+    } else { setStatus('error'); setResultMsg(result.msg || ''); }
   }
   async function handleSyncFrom() {
-    setStatus('loading'); setErrMsg('');
+    setStatus('loading'); setResultMsg('');
     const result = await onSyncFrom();
-    if (result.ok) { setStatus('loaded'); setTimeout(onClose, 1800); }
-    else { setStatus('error'); setErrMsg(result.msg || ''); }
+    if (result.ok) {
+      setResultMsg(`נטענו ${result.cats} קטגוריות, ${result.recipes} מתכונים`);
+      setStatus('loaded'); setTimeout(onClose, 2500);
+    } else { setStatus('error'); setResultMsg(result.msg || ''); }
   }
 
   return (
     <Modal title="☁️ סנכרון GitHub" onClose={onClose}>
       <div style={{display:'flex', flexDirection:'column', gap:14}}>
 
-        {/* Status banner — shown at TOP so always visible on mobile */}
+        {/* Status banner — at TOP, always visible on mobile */}
         {status === 'saving'  && <div style={{background:'#fef3c7', borderRadius:10, padding:'12px 14px', color:'#92400e', fontWeight:600, textAlign:'center'}}>⏳ שומר לענן...</div>}
         {status === 'loading' && <div style={{background:'#fef3c7', borderRadius:10, padding:'12px 14px', color:'#92400e', fontWeight:600, textAlign:'center'}}>⏳ מחפש וטוען מהענן...</div>}
-        {status === 'saved'   && <div style={{background:'#d1fae5', borderRadius:10, padding:'12px 14px', color:'#065f46', fontWeight:600, textAlign:'center'}}>✅ נשמר בענן בהצלחה! סוגר...</div>}
-        {status === 'loaded'  && <div style={{background:'#d1fae5', borderRadius:10, padding:'12px 14px', color:'#065f46', fontWeight:600, textAlign:'center'}}>✅ נטען מהענן בהצלחה! סוגר...</div>}
-        {status === 'error'   && <div style={{background:'#fee2e2', borderRadius:10, padding:'12px 14px', color:'#991b1b', fontWeight:600}}>❌ שגיאה: {errMsg || 'בדוק שה-Token תקין ויש לו הרשאת gist'}</div>}
+        {status === 'saved'   && <div style={{background:'#d1fae5', borderRadius:10, padding:'12px 14px', color:'#065f46', fontWeight:700, textAlign:'center'}}>✅ נשמר בענן בהצלחה!<br/><span style={{fontWeight:400, fontSize:'0.9rem'}}>{resultMsg}</span></div>}
+        {status === 'loaded'  && <div style={{background:'#d1fae5', borderRadius:10, padding:'12px 14px', color:'#065f46', fontWeight:700, textAlign:'center'}}>✅ נטען מהענן בהצלחה!<br/><span style={{fontWeight:400, fontSize:'0.9rem'}}>{resultMsg}</span></div>}
+        {status === 'error'   && <div style={{background:'#fee2e2', borderRadius:10, padding:'12px 14px', color:'#991b1b', fontWeight:600}}>❌ שגיאה: {resultMsg || 'בדוק שה-Token תקין ויש לו הרשאת gist'}</div>}
 
         {/* Token input */}
         <div>
-          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:6}}>
-            GitHub Personal Access Token
-          </label>
+          <label style={{fontSize:'0.85rem', fontWeight:600, color:'#374151', display:'block', marginBottom:6}}>GitHub Personal Access Token</label>
           <div style={{display:'flex', gap:6}}>
-            <input
-              className="input-field"
-              type={showToken ? 'text' : 'password'}
-              value={inputToken}
-              onChange={e => setInputToken(e.target.value)}
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              style={{flex:1, fontFamily:'monospace', fontSize:'0.85rem'}}
-            />
+            <input className="input-field" type={showToken ? 'text' : 'password'} value={inputToken}
+              onChange={e => setInputToken(e.target.value)} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+              style={{flex:1, fontFamily:'monospace', fontSize:'0.85rem'}} />
             <button onClick={() => setShowToken(p=>!p)}
               style={{background:'#f3f4f6', border:'1.5px solid #d1d5db', borderRadius:8, padding:'0 10px', cursor:'pointer', fontSize:'1rem'}}>
               {showToken ? '🙈' : '👁️'}
@@ -231,15 +228,11 @@ function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, on
           </div>
           {tokenChanged && inputToken.trim() && (
             <button className="btn-primary" style={{marginTop:8, width:'100%', fontSize:'0.9rem'}}
-              onClick={() => { onSaveToken(inputToken.trim()); setStatus(null); }}>
+              onClick={() => { onSaveToken(inputToken.trim()); setStatus(null); setResultMsg(''); }}>
               💾 שמור Token
             </button>
           )}
-          {!token && (
-            <p style={{fontSize:'0.8rem', color:'#9ca3af', marginTop:6}}>
-              צור Token ב-GitHub → Settings → Developer settings → Personal access tokens (classic) → scope: <strong>gist</strong>
-            </p>
-          )}
+          {!token && <p style={{fontSize:'0.8rem', color:'#9ca3af', marginTop:6}}>צור Token ב-GitHub → Settings → Developer settings → Personal access tokens (classic) → scope: <strong>gist</strong></p>}
         </div>
 
         {/* Sync buttons */}
@@ -256,11 +249,18 @@ function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, on
           </div>
         )}
 
-        {/* Last sync info */}
-        {lastSync && !status && (
-          <p style={{fontSize:'0.78rem', color:'#d1d5db', textAlign:'center'}}>
-            סנכרון אחרון: {new Date(lastSync).toLocaleString('he-IL')}
-          </p>
+        {/* Gist info + reset */}
+        {token && !tokenChanged && !busy && !status && (
+          <div style={{borderTop:'1px solid #f3f4f6', paddingTop:12}}>
+            {gistId
+              ? <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <span style={{fontSize:'0.75rem', color:'#9ca3af'}}>Gist: <code style={{fontSize:'0.72rem'}}>{gistId.slice(0,12)}…</code></span>
+                  <button onClick={onResetGistId} style={{background:'none', border:'none', color:'#f97316', fontSize:'0.78rem', cursor:'pointer', textDecoration:'underline'}}>חפש Gist מחדש</button>
+                </div>
+              : <p style={{fontSize:'0.78rem', color:'#9ca3af', textAlign:'center'}}>טרם נוצר גיבוי בענן</p>
+            }
+            {lastSync && <p style={{fontSize:'0.75rem', color:'#d1d5db', textAlign:'center', marginTop:4}}>סנכרון אחרון: {new Date(lastSync).toLocaleString('he-IL')}</p>}
+          </div>
         )}
       </div>
     </Modal>
@@ -1377,7 +1377,7 @@ function App() {
       const data = await res.json();
       if (!gid) setGistId(data.id);
       setLastSync(new Date().toISOString());
-      return { ok: true };
+      return { ok: true, cats: categories.length, recipes: recipes.length };
     } catch(e) { return { ok: false, msg: e.message }; }
   }
 
@@ -1412,7 +1412,7 @@ function App() {
       localStorage.setItem(SK.RECIPES, JSON.stringify(parsed.recipes || []));
       localStorage.setItem(SK.CONV,    JSON.stringify(parsed.conversions || DEF_CONV));
       setLastSync(new Date().toISOString());
-      return { ok: true };
+      return { ok: true, cats: (parsed.categories||[]).length, recipes: (parsed.recipes||[]).length };
     } catch(e) { return { ok: false, msg: e.message }; }
   }
 
@@ -1477,7 +1477,8 @@ function App() {
           onClose={() => setShowSync(false)}
           onSaveToken={t => setGhToken(t)}
           onSyncTo={syncToCloud}
-          onSyncFrom={syncFromCloud} />
+          onSyncFrom={syncFromCloud}
+          onResetGistId={() => setGistId('')} />
       )}
       <main>
         {route.page === 'home' && (
