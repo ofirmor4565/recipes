@@ -184,23 +184,31 @@ function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, on
   const [status, setStatus] = useState(null); // null | 'saving' | 'loading' | 'saved' | 'loaded' | 'error'
   const [errMsg, setErrMsg] = useState('');
   const tokenChanged = inputToken.trim() !== token;
+  const busy = status === 'saving' || status === 'loading';
 
   async function handleSyncTo() {
     setStatus('saving'); setErrMsg('');
     const result = await onSyncTo();
-    setStatus(result.ok ? 'saved' : 'error');
-    if (!result.ok) setErrMsg(result.msg || '');
+    if (result.ok) { setStatus('saved'); setTimeout(onClose, 1800); }
+    else { setStatus('error'); setErrMsg(result.msg || ''); }
   }
   async function handleSyncFrom() {
     setStatus('loading'); setErrMsg('');
     const result = await onSyncFrom();
-    setStatus(result.ok ? 'loaded' : 'error');
-    if (!result.ok) setErrMsg(result.msg || '');
+    if (result.ok) { setStatus('loaded'); setTimeout(onClose, 1800); }
+    else { setStatus('error'); setErrMsg(result.msg || ''); }
   }
 
   return (
     <Modal title="☁️ סנכרון GitHub" onClose={onClose}>
-      <div style={{display:'flex', flexDirection:'column', gap:16}}>
+      <div style={{display:'flex', flexDirection:'column', gap:14}}>
+
+        {/* Status banner — shown at TOP so always visible on mobile */}
+        {status === 'saving'  && <div style={{background:'#fef3c7', borderRadius:10, padding:'12px 14px', color:'#92400e', fontWeight:600, textAlign:'center'}}>⏳ שומר לענן...</div>}
+        {status === 'loading' && <div style={{background:'#fef3c7', borderRadius:10, padding:'12px 14px', color:'#92400e', fontWeight:600, textAlign:'center'}}>⏳ מחפש וטוען מהענן...</div>}
+        {status === 'saved'   && <div style={{background:'#d1fae5', borderRadius:10, padding:'12px 14px', color:'#065f46', fontWeight:600, textAlign:'center'}}>✅ נשמר בענן בהצלחה! סוגר...</div>}
+        {status === 'loaded'  && <div style={{background:'#d1fae5', borderRadius:10, padding:'12px 14px', color:'#065f46', fontWeight:600, textAlign:'center'}}>✅ נטען מהענן בהצלחה! סוגר...</div>}
+        {status === 'error'   && <div style={{background:'#fee2e2', borderRadius:10, padding:'12px 14px', color:'#991b1b', fontWeight:600}}>❌ שגיאה: {errMsg || 'בדוק שה-Token תקין ויש לו הרשאת gist'}</div>}
 
         {/* Token input */}
         <div>
@@ -235,27 +243,22 @@ function SyncModal({ token, gistId, lastSync, onClose, onSaveToken, onSyncTo, on
         </div>
 
         {/* Sync buttons */}
-        {token && !tokenChanged && (
+        {token && !tokenChanged && !busy && status !== 'saved' && status !== 'loaded' && (
           <div style={{display:'flex', flexDirection:'column', gap:8}}>
-            <button className="btn-primary" onClick={handleSyncTo} disabled={status==='saving' || status==='loading'}
-              style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
-              {status==='saving' ? '⏳ שומר לענן...' : '☁️ שמור לענן עכשיו'}
+            <button className="btn-primary" onClick={handleSyncTo}
+              style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px'}}>
+              ☁️ שמור לענן עכשיו
             </button>
-            <button className="btn-secondary" onClick={handleSyncFrom} disabled={status==='saving' || status==='loading'}
-              style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
-              {status==='loading' ? '⏳ מחפש וטוען...' : '🔄 טען מהענן (דרוס מקומי)'}
+            <button className="btn-secondary" onClick={handleSyncFrom}
+              style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px'}}>
+              🔄 טען מהענן (דרוס מקומי)
             </button>
           </div>
         )}
 
-        {/* Status */}
-        {status === 'saved'  && <div style={{background:'#d1fae5', borderRadius:10, padding:'10px 14px', color:'#065f46', fontWeight:600}}>✅ נשמר בענן בהצלחה!</div>}
-        {status === 'loaded' && <div style={{background:'#d1fae5', borderRadius:10, padding:'10px 14px', color:'#065f46', fontWeight:600}}>✅ נטען מהענן בהצלחה!</div>}
-        {status === 'error'  && <div style={{background:'#fee2e2', borderRadius:10, padding:'10px 14px', color:'#991b1b', fontWeight:600}}>❌ שגיאה — {errMsg || 'בדוק שה-Token תקין ויש לו הרשאת gist'}</div>}
-
         {/* Last sync info */}
-        {lastSync && (
-          <p style={{fontSize:'0.78rem', color:'#d1d5db', textAlign:'center', marginTop:4}}>
+        {lastSync && !status && (
+          <p style={{fontSize:'0.78rem', color:'#d1d5db', textAlign:'center'}}>
             סנכרון אחרון: {new Date(lastSync).toLocaleString('he-IL')}
           </p>
         )}
@@ -1349,38 +1352,45 @@ function App() {
 
   const navigate = r => { setRoute(r); window.scrollTo(0,0); };
 
+  // קריאה ישירה מ-localStorage כגיבוי למקרה שה-state לא התעדכן בזמן
+  function readLS(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
+
   async function syncToCloud() {
-    if (!ghToken) return { ok: false, msg: 'אין Token' };
+    const tok = ghToken || readLS(SK.TOKEN) || '';
+    const gid = gistId || readLS(SK.GIST_ID) || '';
+    if (!tok) return { ok: false, msg: 'אין Token — הכנס Token ולחץ שמור קודם' };
     try {
       const content = JSON.stringify({ categories, recipes, conversions, savedAt: new Date().toISOString() }, null, 2);
       const body = { description: 'המתכונים שלי — גיבוי אוטומטי', public: false,
         files: { 'recipes-backup.json': { content } } };
-      const url = gistId ? `https://api.github.com/gists/${gistId}` : 'https://api.github.com/gists';
+      const url = gid ? `https://api.github.com/gists/${gid}` : 'https://api.github.com/gists';
       const res = await fetch(url, {
-        method: gistId ? 'PATCH' : 'POST',
-        headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json', Accept: 'application/vnd.github+json' },
+        method: gid ? 'PATCH' : 'POST',
+        headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json', Accept: 'application/vnd.github+json' },
         body: JSON.stringify(body)
       });
       if (!res.ok) { const e = await res.json(); return { ok: false, msg: e.message || res.statusText }; }
       const data = await res.json();
-      if (!gistId) setGistId(data.id);
+      if (!gid) setGistId(data.id);
       setLastSync(new Date().toISOString());
       return { ok: true };
     } catch(e) { return { ok: false, msg: e.message }; }
   }
 
   async function syncFromCloud() {
-    if (!ghToken) return { ok: false, msg: 'חסר Token' };
+    const tok = ghToken || readLS(SK.TOKEN) || '';
+    const gid = gistId || readLS(SK.GIST_ID) || '';
+    if (!tok) return { ok: false, msg: 'אין Token — הכנס Token ולחץ שמור קודם' };
     try {
-      const headers = { Authorization: `token ${ghToken}`, Accept: 'application/vnd.github+json' };
+      const headers = { Authorization: `Bearer ${tok}`, Accept: 'application/vnd.github+json' };
       // אם אין Gist ID שמור — נחפש אוטומטית בין כל ה-Gists
-      let resolvedId = gistId;
+      let resolvedId = gid;
       if (!resolvedId) {
         const listRes = await fetch('https://api.github.com/gists?per_page=100', { headers });
         if (!listRes.ok) { const e = await listRes.json(); return { ok: false, msg: e.message || listRes.statusText }; }
         const list = await listRes.json();
         const found = list.find(g => g.files && g.files['recipes-backup.json']);
-        if (!found) return { ok: false, msg: 'לא נמצא גיבוי ב-GitHub — שמור לענן קודם מהמכשיר הראשי' };
+        if (!found) return { ok: false, msg: 'לא נמצא גיבוי ב-GitHub — שמור לענן קודם מהמחשב' };
         resolvedId = found.id;
         setGistId(resolvedId);
       }
