@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <title>העלאת מתכונים ל-Firestore</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyBai8RCb8zncb6JC8PqJR-YJUS9xIbl_KY",
+      authDomain: "ofir-recipes.firebaseapp.com",
+      projectId: "ofir-recipes",
+      storageBucket: "ofir-recipes.firebasestorage.app",
+      messagingSenderId: "1015200430302",
+      appId: "1:1015200430302:web:aa19286654e7cf23dd2a4f"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
+    var auth = firebase.auth();
+  </script>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f9f9f9; }
+    button { background: #f97316; color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; cursor: pointer; margin: 8px 4px; }
+    button.secondary { background: #6b7280; }
+    pre { background: #1f2937; color: #f3f4f6; padding: 16px; border-radius: 8px; max-height: 300px; overflow-y: auto; font-size: 0.85rem; white-space: pre-wrap; }
+    .status { padding: 12px; border-radius: 8px; margin: 12px 0; font-weight: 600; }
+    .ok { background: #d1fae5; color: #065f46; }
+    .err { background: #fee2e2; color: #991b1b; }
+    .info { background: #dbeafe; color: #1e40af; }
+  </style>
+</head>
+<body>
+<h2>🔧 העלאת מתכונים ל-Firestore</h2>
+<div id="authDiv">
+  <p>יש להתחבר עם אותו Google שאיתו נכנסים לאתר המתכונים:</p>
+  <button onclick="signIn()">התחבר עם Google</button>
+</div>
+<div id="mainDiv" style="display:none">
+  <div class="status ok" id="userInfo"></div>
+  <p>בחר קובץ JSON של גיבוי המתכונים:</p>
+  <input type="file" id="jsonFile" accept=".json" onchange="loadFile(event)" />
+  <div id="preview" style="display:none">
+    <div class="status info" id="previewInfo"></div>
+    <button onclick="doMigrate()">⬆️ העלה לFirestore</button>
+    <button class="secondary" onclick="location.href='https://ofir-recipes.web.app'">← חזור לאתר</button>
+  </div>
+  <pre id="log"></pre>
+  <button class="secondary" onclick="auth.signOut().then(()=>location.reload())">יציאה</button>
+</div>
+
+<script>
+var loadedData = null;
+
+function log(msg, color) {
+  var el = document.getElementById('log');
+  var time = new Date().toLocaleTimeString('he-IL');
+  el.textContent += '[' + time + '] ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+  if (color) console.log('%c' + msg, 'color:' + color);
+}
+
+auth.onAuthStateChanged(function(user) {
+  if (user) {
+    document.getElementById('authDiv').style.display = 'none';
+    document.getElementById('mainDiv').style.display = 'block';
+    document.getElementById('userInfo').textContent = '✅ מחובר כ: ' + (user.displayName || user.email);
+  } else {
+    document.getElementById('authDiv').style.display = 'block';
+    document.getElementById('mainDiv').style.display = 'none';
+  }
+});
+
+function signIn() {
+  var provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(function(e) { alert('שגיאה: ' + e.message); });
+}
+
+function loadFile(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      loadedData = JSON.parse(ev.target.result);
+      var info = 'נמצאו: ' + (loadedData.recipes||[]).length + ' מתכונים, ' +
+                 (loadedData.categories||[]).length + ' קטגוריות, ' +
+                 (loadedData.conversions||[]).length + ' המרות';
+      document.getElementById('previewInfo').textContent = info;
+      document.getElementById('preview').style.display = 'block';
+      log('נטען קובץ: ' + info);
+    } catch(ex) {
+      alert('קובץ לא תקין: ' + ex.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function doMigrate() {
+  if (!loadedData) { alert('טען קובץ קודם'); return; }
+  var user = auth.currentUser;
+  if (!user) { alert('יש להתחבר'); return; }
+
+  document.querySelector('button[onclick="doMigrate()"]').disabled = true;
+  log('מתחיל העלאה...');
+
+  try {
+    // Write categories + conversions
+    var cats = loadedData.categories || [];
+    var convs = loadedData.conversions || [];
+    log('כותב קטגוריות ו-' + convs.length + ' המרות...');
+    await db.collection('app').doc('data').set({
+      categories: cats.length ? cats : null,
+      conversions: convs.length ? convs : null
+    }, { merge: true });
+    log('✅ קטגוריות והמרות נשמרו');
+
+    // Write recipes
+    var recipes = loadedData.recipes || [];
+    log('מעלה ' + recipes.length + ' מתכונים...');
+    for (var i = 0; i < recipes.length; i++) {
+      var r = recipes[i];
+      await db.collection('recipes').doc(r.id).set(r);
+      log('  ✓ ' + (i+1) + '/' + recipes.length + ' – ' + r.name);
+    }
+
+    log('');
+    log('🎉 הכל הועלה! לחץ "חזור לאתר"');
+    document.getElementById('previewInfo').textContent = '✅ הועלה בהצלחה! ' + recipes.length + ' מתכונים';
+    document.getElementById('previewInfo').style.background = '#d1fae5';
+    document.getElementById('previewInfo').style.color = '#065f46';
+  } catch(err) {
+    log('❌ שגיאה: ' + err.message);
+    document.querySelector('button[onclick="doMigrate()"]').disabled = false;
+  }
+}
+</script>
+</body>
+</html>

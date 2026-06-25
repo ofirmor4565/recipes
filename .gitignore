@@ -1,0 +1,3 @@
+.firebase/
+serviceAccount.json
+migrate.js
