@@ -219,8 +219,11 @@ function NavBar({ route, navigate, user, onSignOut }) {
           {route.page !== 'home' && (
             <button className="nav-link" onClick={() => navigate({page:'home'})}>🏠 ראשי</button>
           )}
+          <button className={`nav-link${route.page==='shopping'?' active':''}`} onClick={() => navigate({page:'shopping'})}>
+            🛒 קניות
+          </button>
           <button className={`nav-link${route.page==='conversion'?' active':''}`} onClick={() => navigate({page:'conversion'})}>
-            ⚖️ מחשבון המרה
+            ⚖️ המרה
           </button>
           {user && (
             <div style={{display:'flex', alignItems:'center', gap:8, marginRight:4}}>
@@ -1195,12 +1198,216 @@ function ConvModal({ title, row, onClose, onSave }) {
   );
 }
 
+/* ─── ShoppingListPage ───────────────────────────────────── */
+function ShoppingListPage({ items, shoppingMode, knownProducts, onAdd, onToggle, onDelete, onStartShopping, onFinishShopping }) {
+  const [inputName, setInputName] = useState('');
+  const [inputQty, setInputQty] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const inputRef = useRef();
+
+  function handleNameChange(val) {
+    setInputName(val);
+    if (val.trim().length > 0) {
+      const filtered = knownProducts.filter(p => p.includes(val.trim()));
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }
+
+  function handleAdd() {
+    if (!inputName.trim()) return;
+    onAdd(inputName.trim(), inputQty.trim());
+    setInputName('');
+    setInputQty('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  }
+
+  function selectSuggestion(name) {
+    setInputName(name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  const pendingCount = items.filter(i => !i.done).length;
+
+  if (shoppingMode) {
+    return (
+      <div style={{maxWidth:600, margin:'0 auto', padding:'24px 16px'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24, flexWrap:'wrap', gap:10}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <span style={{fontSize:'1.8rem'}}>🛒</span>
+            <div>
+              <h1 style={{fontSize:'1.5rem', fontWeight:800, color:'#1f2937'}}>בקניות</h1>
+              <p style={{fontSize:'0.82rem', color:'#9ca3af'}}>{pendingCount > 0 ? `${pendingCount} פריטים נותרו` : 'הכל הושלם!'}</p>
+            </div>
+            <span style={{background:'#f97316', color:'white', borderRadius:20, padding:'3px 12px', fontSize:'0.78rem', fontWeight:700}}>מצב קניות</span>
+          </div>
+          <button className="btn-primary" onClick={onFinishShopping}>✅ סיימתי קניות</button>
+        </div>
+
+        {items.length === 0 ? (
+          <div style={{textAlign:'center', padding:'60px 20px', color:'#9ca3af'}}>
+            <div style={{fontSize:'3rem', marginBottom:12}}>🎉</div>
+            <p style={{fontWeight:700, fontSize:'1.1rem', color:'#16a34a'}}>כל הפריטים הושלמו!</p>
+            <button className="btn-primary" style={{marginTop:20}} onClick={onFinishShopping}>✅ סיים וסגור רשימה</button>
+          </div>
+        ) : (
+          <div style={{display:'flex', flexDirection:'column', gap:8}}>
+            {items.map(item => (
+              <div key={item.id} onClick={() => onToggle(item.id)}
+                style={{
+                  display:'flex', alignItems:'center', gap:14, padding:'14px 18px',
+                  background: item.done ? '#f0fdf4' : 'white',
+                  border: `1.5px solid ${item.done ? '#86efac' : '#e5e7eb'}`,
+                  borderRadius:14, cursor:'pointer', transition:'all 0.18s',
+                  opacity: item.done ? 0.75 : 1,
+                  userSelect: 'none'
+                }}>
+                <div style={{
+                  width:26, height:26, borderRadius:'50%', flexShrink:0,
+                  border: `2px solid ${item.done ? '#16a34a' : '#d1d5db'}`,
+                  background: item.done ? '#16a34a' : 'transparent',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  transition:'all 0.18s'
+                }}>
+                  {item.done && <span style={{color:'white', fontSize:'0.8rem', fontWeight:700}}>✓</span>}
+                </div>
+                <span style={{
+                  flex:1, fontSize:'1rem', fontWeight:500,
+                  color: item.done ? '#6b7280' : '#1f2937',
+                  textDecoration: item.done ? 'line-through' : 'none',
+                  transition:'all 0.18s'
+                }}>{item.name}</span>
+                {item.qty && (
+                  <span style={{
+                    color: item.done ? '#9ca3af' : '#f97316',
+                    fontWeight:700, fontSize:'0.9rem', flexShrink:0,
+                    textDecoration: item.done ? 'line-through' : 'none'
+                  }}>{item.qty}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{maxWidth:600, margin:'0 auto', padding:'24px 16px'}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24, flexWrap:'wrap', gap:12}}>
+        <div>
+          <h1 style={{fontSize:'1.8rem', fontWeight:800, color:'#1f2937'}}>רשימת קניות 🛒</h1>
+          <p style={{color:'#6b7280', fontSize:'0.9rem', marginTop:4}}>
+            {items.length === 0 ? 'הרשימה ריקה' : `${items.length} פריטים ברשימה`}
+          </p>
+        </div>
+        {items.length > 0 && (
+          <button className="btn-primary" onClick={onStartShopping}>🛒 אני בקניות כעת</button>
+        )}
+      </div>
+
+      <div style={{background:'white', borderRadius:16, padding:'18px', marginBottom:20, boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+        <p style={{fontWeight:600, color:'#374151', marginBottom:12, fontSize:'0.9rem'}}>הוסף פריט</p>
+        <div style={{display:'flex', gap:8, alignItems:'flex-start'}}>
+          <div style={{position:'relative', flex:1}}>
+            <input
+              ref={inputRef}
+              className="input-field"
+              value={inputName}
+              onChange={e => handleNameChange(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onFocus={() => { if (inputName.trim() && suggestions.length > 0) setShowSuggestions(true); }}
+              placeholder="שם המוצר (למשל: קוטג׳ 5%)"
+              autoComplete="off"
+            />
+            {showSuggestions && (
+              <div style={{
+                position:'absolute', top:'calc(100% + 2px)', right:0, left:0,
+                background:'white', border:'1.5px solid #f97316',
+                borderRadius:'0 0 10px 10px', boxShadow:'0 6px 16px rgba(0,0,0,0.12)',
+                zIndex:50, maxHeight:200, overflowY:'auto'
+              }}>
+                {suggestions.map((s, i) => (
+                  <div key={i} onMouseDown={() => selectSuggestion(s)}
+                    style={{
+                      padding:'10px 14px', cursor:'pointer', fontSize:'0.9rem', color:'#374151',
+                      borderBottom: i < suggestions.length - 1 ? '1px solid #f3f4f6' : 'none',
+                      display:'flex', alignItems:'center', gap:8
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
+                    onMouseLeave={e => e.currentTarget.style.background='white'}>
+                    <span style={{color:'#f97316', fontSize:'0.8rem'}}>🔍</span>
+                    {s}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <input
+            className="input-field"
+            value={inputQty}
+            onChange={e => setInputQty(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+            placeholder="כמות"
+            style={{width:80}}
+          />
+          <button className="btn-primary" onClick={handleAdd} disabled={!inputName.trim()}
+            style={{flexShrink:0}}>+ הוסף</button>
+        </div>
+      </div>
+
+      {items.length > 0 ? (
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
+          {items.map(item => (
+            <div key={item.id} style={{
+              display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
+              background:'white', borderRadius:12,
+              boxShadow:'0 1px 4px rgba(0,0,0,0.06)', border:'1px solid #f3f4f6'
+            }}>
+              <span style={{flex:1, fontSize:'0.95rem', color:'#1f2937', fontWeight:500}}>{item.name}</span>
+              {item.qty && (
+                <span style={{color:'#f97316', fontWeight:700, fontSize:'0.9rem', flexShrink:0,
+                  background:'#fff7ed', borderRadius:8, padding:'2px 8px'}}>{item.qty}</span>
+              )}
+              <button onClick={() => onDelete(item.id)}
+                style={{background:'none', border:'none', color:'#d1d5db', cursor:'pointer',
+                  fontSize:'1rem', padding:'2px 6px', flexShrink:0, lineHeight:1, borderRadius:6}}
+                onMouseEnter={e => e.currentTarget.style.color='#dc2626'}
+                onMouseLeave={e => e.currentTarget.style.color='#d1d5db'}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{textAlign:'center', padding:'60px 20px', color:'#9ca3af'}}>
+          <div style={{fontSize:'3rem', marginBottom:12}}>🛒</div>
+          <p style={{fontWeight:600, fontSize:'1rem'}}>הרשימה ריקה</p>
+          <p style={{fontSize:'0.85rem', marginTop:6}}>הוסיפו פריטים לרשימת הקניות</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── App ────────────────────────────────────────────────── */
 function App() {
   const [route, setRoute] = useState({ page: 'home' });
   const [categories, setCategories] = useState(DEF_CATS);
   const [recipes, setRecipes] = useState([]);
   const [conversions, setConversions] = useState(DEF_CONV);
+  const [shoppingItems, setShoppingItems] = useState([]);
+  const [shoppingMode, setShoppingMode] = useState(false);
+  const [knownProducts, setKnownProducts] = useState([]);
   const [user, setUser] = useState(undefined); // undefined = בודק auth
 
   useEffect(() => {
@@ -1224,7 +1431,16 @@ function App() {
       setRecipes(snap.docs.map(d => d.data()));
     }, err => console.error('recipes:', err));
 
-    return () => { unsubApp(); unsubRecipes(); };
+    const unsubShopping = db.collection('shopping').doc('data').onSnapshot(snap => {
+      if (snap.exists) {
+        const d = snap.data();
+        setShoppingItems(d.items || []);
+        setShoppingMode(d.shoppingMode || false);
+        setKnownProducts(d.known || []);
+      }
+    }, err => console.error('shopping:', err));
+
+    return () => { unsubApp(); unsubRecipes(); unsubShopping(); };
   }, [user]);
 
   const navigate = r => { setRoute(r); window.scrollTo(0,0); };
@@ -1239,7 +1455,46 @@ function App() {
     setCategories(DEF_CATS);
     setRecipes([]);
     setConversions(DEF_CONV);
+    setShoppingItems([]);
+    setShoppingMode(false);
+    setKnownProducts([]);
     setRoute({ page: 'home' });
+  }
+
+  function saveShoppingData(items, mode, known) {
+    db.collection('shopping').doc('data').set({ items, shoppingMode: mode, known }, { merge: true }).catch(console.error);
+  }
+
+  function addShoppingItem(name, qty) {
+    const item = { id: genId(), name, qty: qty || '', done: false };
+    const newItems = [...shoppingItems, item];
+    const newKnown = knownProducts.includes(name) ? knownProducts : [...knownProducts, name];
+    setShoppingItems(newItems);
+    setKnownProducts(newKnown);
+    saveShoppingData(newItems, shoppingMode, newKnown);
+  }
+
+  function toggleShoppingItem(id) {
+    const newItems = shoppingItems.map(i => i.id === id ? { ...i, done: !i.done } : i);
+    setShoppingItems(newItems);
+    db.collection('shopping').doc('data').update({ items: newItems }).catch(console.error);
+  }
+
+  function deleteShoppingItem(id) {
+    const newItems = shoppingItems.filter(i => i.id !== id);
+    setShoppingItems(newItems);
+    db.collection('shopping').doc('data').update({ items: newItems }).catch(console.error);
+  }
+
+  function startShopping() {
+    setShoppingMode(true);
+    db.collection('shopping').doc('data').set({ items: shoppingItems, shoppingMode: true, known: knownProducts }, { merge: true }).catch(console.error);
+  }
+
+  function finishShopping() {
+    setShoppingItems([]);
+    setShoppingMode(false);
+    db.collection('shopping').doc('data').update({ items: [], shoppingMode: false }).catch(console.error);
   }
 
   function saveCats(cats) {
@@ -1312,7 +1567,13 @@ function App() {
         {route.page === 'conversion' && (
           <ConversionPage conversions={conversions} setConversions={saveConvs} />
         )}
-        {!['home','category','recipe','conversion'].includes(route.page) && (
+        {route.page === 'shopping' && (
+          <ShoppingListPage
+            items={shoppingItems} shoppingMode={shoppingMode} knownProducts={knownProducts}
+            onAdd={addShoppingItem} onToggle={toggleShoppingItem} onDelete={deleteShoppingItem}
+            onStartShopping={startShopping} onFinishShopping={finishShopping} />
+        )}
+        {!['home','category','recipe','conversion','shopping'].includes(route.page) && (
           <div style={{textAlign:'center', padding:'80px 20px'}}>
             <p style={{fontSize:'3rem'}}>🤔</p>
             <p style={{color:'#6b7280'}}>עמוד לא נמצא</p>

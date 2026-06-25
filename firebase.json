@@ -1,7 +1,7 @@
 {
   "hosting": {
     "public": ".",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "serviceAccount.json", "migrate.js"],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "serviceAccount.json", "migrate.js", "recipe-app.html"],
     "rewrites": [
       { "source": "**", "destination": "/index.html" }
     ]
