@@ -1199,7 +1199,7 @@ function ConvModal({ title, row, onClose, onSave }) {
 }
 
 /* ─── ShoppingListPage ───────────────────────────────────── */
-function ShoppingListPage({ items, shoppingMode, knownProducts, onAdd, onToggle, onDelete, onStartShopping, onFinishShopping }) {
+function ShoppingListPage({ items, shoppingMode, knownProducts, onAdd, onToggle, onDelete, onStartShopping, onFinishShopping, onCancelShopping }) {
   const [inputName, setInputName] = useState('');
   const [inputQty, setInputQty] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -1249,7 +1249,10 @@ function ShoppingListPage({ items, shoppingMode, knownProducts, onAdd, onToggle,
             </div>
             <span style={{background:'#f97316', color:'white', borderRadius:20, padding:'3px 12px', fontSize:'0.78rem', fontWeight:700}}>מצב קניות</span>
           </div>
-          <button className="btn-primary" onClick={onFinishShopping}>✅ סיימתי קניות</button>
+          <div style={{display:'flex', gap:8}}>
+            <button className="btn-secondary" onClick={onCancelShopping}>← חזור לעריכה</button>
+            <button className="btn-primary" onClick={onFinishShopping}>✅ סיימתי קניות</button>
+          </div>
         </div>
 
         {items.length === 0 ? (
@@ -1497,6 +1500,11 @@ function App() {
     db.collection('shopping').doc('data').update({ items: [], shoppingMode: false }).catch(console.error);
   }
 
+  function cancelShopping() {
+    setShoppingMode(false);
+    db.collection('shopping').doc('data').update({ shoppingMode: false }).catch(console.error);
+  }
+
   function saveCats(cats) {
     setCategories(cats);
     db.collection('app').doc('data').update({ categories: cats }).catch(console.error);
@@ -1571,7 +1579,7 @@ function App() {
           <ShoppingListPage
             items={shoppingItems} shoppingMode={shoppingMode} knownProducts={knownProducts}
             onAdd={addShoppingItem} onToggle={toggleShoppingItem} onDelete={deleteShoppingItem}
-            onStartShopping={startShopping} onFinishShopping={finishShopping} />
+            onStartShopping={startShopping} onFinishShopping={finishShopping} onCancelShopping={cancelShopping} />
         )}
         {!['home','category','recipe','conversion','shopping'].includes(route.page) && (
           <div style={{textAlign:'center', padding:'80px 20px'}}>
