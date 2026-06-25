@@ -1555,7 +1555,7 @@ function App() {
 
   if (user === undefined) return <LoadingPage />;
   if (!user) return <SignInPage onSignIn={signIn} />;
-  const ALLOWED = ['mankal@hovlim.com', 'noya.haasnoot@gmail.com'];
+  const ALLOWED = ['ofirmor1234@gmail.com', 'mankal@hovlim.com', 'noya.haasnoot@gmail.com'];
   if (!ALLOWED.includes(user.email)) return (
     <div style={{minHeight:'100vh',background:'#faf9f6',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,padding:20}}>
       <div style={{fontSize:'3rem'}}>🔒</div>
